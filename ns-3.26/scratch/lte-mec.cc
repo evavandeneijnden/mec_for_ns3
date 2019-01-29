@@ -43,7 +43,7 @@ using namespace ns3;
 /**
  * Sample simulation script for LTE+MEC+EPC. A MEC server is attached to each
  * eNodeB (or PGW). MEC can run both UDP and TCP based applications.
- * 
+ *
  */
 
 NS_LOG_COMPONENT_DEFINE ("LteMecExample");
@@ -57,11 +57,11 @@ main (int argc, char *argv[])
   LogComponentEnable("PointToPointEpcHelper", LOG_LEVEL_ALL);
   LogComponentEnable("PacketSink", LOG_LEVEL_ALL);
   LogComponentEnable("LteMecExample", LOG_LEVEL_ALL);
-  
+
   for(int i=0;i<argc;i++){
     NS_LOG_LOGIC("argv["<<i<<"] = " << argv[i]);
   }
-  
+
   uint16_t numberOfNodes = 1;
   double simTime = 25.1;
   double distance = 60.0;
@@ -78,7 +78,11 @@ main (int argc, char *argv[])
   Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
   Ptr<PointToPointEpcHelper>  epcHelper = CreateObject<PointToPointEpcHelper> ();
   lteHelper->SetEpcHelper (epcHelper);
-  
+
+  PointToPointHelper p2p;
+  p2p.SetDeviceAttribute("DataRate", StringValue ("1000Mbps"));
+  p2p.setChannelAttribute ("Delay", StringValue ("2ms"));
+
   ConfigStore inputConfig;
   inputConfig.ConfigureDefaults();
 
@@ -115,17 +119,27 @@ main (int argc, char *argv[])
 
   NodeContainer ueNodes;
   NodeContainer enbNodes;
+  NodeContainer mecNodes;
   enbNodes.Create(1); //only one eNB
   Ptr<Node> enb = enbNodes.Get(0);
+  mecNodes.Create(1); //one MEC node for now
+  Ptr<Node> mec = mecNodes.Get(0);
   ueNodes.Create(numberOfNodes);
 
   // Install Mobility Model
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-  positionAlloc->Add (Vector(70.0, 180.0, 10));  
+  positionAlloc->Add (Vector(70.0, 180.0, 10));
   MobilityHelper enbmobility;
   enbmobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   enbmobility.SetPositionAllocator(positionAlloc);
   enbmobility.Install(enbNodes);
+
+  Ptr<ListPositionAllocator> mecPositionAlloc = CreateObject<ListPositionAllocator> ();
+  positionAlloc->Add (Vector(60.0, 180.0, 10));
+  MobilityHelper mecmobility;
+  mecmobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+  mecmobility.SetPositionAllocator(mecPositionAlloc);
+  mecmobility.Install(mecNodes);
 
   Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
   for (uint16_t i = 0; i<numberOfNodes; i++) {
@@ -139,6 +153,18 @@ main (int argc, char *argv[])
   // Install LTE Devices to the nodes
   NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
   NetDeviceContainer ueLteDevs = lteHelper->InstallUeDevice (ueNodes);
+
+  NodeContainer p2pNodes;
+  p2pNodes.Add(mec);
+  p2pNodes.Add(enb);
+  p2pNodes.Install(p2pNodes);
+
+  // Install IP stack on MECs
+  internet.Install(mecNodes);
+  Ipv4AddressHelper address;
+  address.SetBase("10.1.1.0", "255.255.255.0");
+  Ipv4InterfaceContainer interfaces = addresss.Assign(mecNodes); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  Ipv4Address mecAddr = interfaces.GetAddress(0);
 
   // Install the IP stack on the UEs
   internet.Install (ueNodes);
@@ -171,10 +197,11 @@ main (int argc, char *argv[])
   ApplicationContainer clientApps; //UDP and TCP apps on UE
   ApplicationContainer serverApps; //the packet sinks
 
-  bool useMecOnEnb = true; //true --> MEC on eNB
+  bool useMecOnEnb = false; //true --> MEC on eNB
   bool useMecOnPgw = false;//true --> MEC on PGW (if not on eNB)
+  bool useMecOnSeparate = true; //true --> MEC on separate node
   //if both above are false, no MEC, packet sinks are on remote host
-  
+
   for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
     {
       ++udpPort;
@@ -192,52 +219,56 @@ main (int argc, char *argv[])
         targetHost = pgw;
         targetAddr = pgwAddr;
       }
+      else if(useMecOnSeparate){
+        targetHost = mec;
+        targetAddr = mecAddr;
+      }
       else {
         targetHost = remoteHost;
         targetAddr = remoteHostAddr;
       }
-        
+
       serverApps.Add (udpPacketSinkHelper.Install (targetHost));
       serverApps.Add (tcpPacketSinkHelper.Install (targetHost));
 
       NS_LOG_LOGIC("targetHostAddr = " << targetAddr);
-      UdpClientHelper ulClient (InetSocketAddress(targetAddr, udpPort)); 
+      UdpClientHelper ulClient (InetSocketAddress(targetAddr, udpPort));
       ulClient.SetAttribute ("Interval", TimeValue (MilliSeconds(interPacketInterval)));
       ulClient.SetAttribute ("MaxPackets", UintegerValue(1000000));
-      ulClient.SetAttribute ("PacketSize", UintegerValue(1400)); 
+      ulClient.SetAttribute ("PacketSize", UintegerValue(1400));
 
       clientApps.Add (ulClient.Install (ueNodes.Get(u)));
-      
+
       BulkSendHelper TcpClient("ns3::TcpSocketFactory", InetSocketAddress(targetAddr, tcpPort));
-      
+
       TcpClient.SetAttribute("MaxBytes", UintegerValue(1000000));
-      clientApps.Add(TcpClient.Install(ueNodes.Get(u))); 
-     
+      clientApps.Add(TcpClient.Install(ueNodes.Get(u)));
+
     }
-  
+
   serverApps.Start (Seconds (0.01));
   clientApps.Start (Seconds (0.01));
-  clientApps.Stop (Seconds (10.01)); 
+  clientApps.Stop (Seconds (10.01));
   lteHelper->EnableTraces ();
 
   /*
   // Uncomment to enable PCAP tracing
   //p2ph.EnablePcapAll("lte-mec");
   */
-  
+
   // Flow monitor
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
-  
+
   Simulator::Stop(Seconds(simTime));
   Simulator::Run();
 
   /*GtkConfigStore config;
   config.ConfigureAttributes();*/
- 
+
   flowMonitor->SerializeToXmlFile("flow_stats_mec.xml", true, true);
-  
+
   Simulator::Destroy();
   return 0;
 
