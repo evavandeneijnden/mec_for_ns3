@@ -37,7 +37,6 @@
 
 #include "ns3/flow-monitor.h"
 #include "ns3/flow-monitor-helper.h"
-#include "ns3/netanim-module.h"
 
 using namespace ns3;
 
@@ -80,10 +79,6 @@ main (int argc, char *argv[])
   Ptr<PointToPointEpcHelper>  epcHelper = CreateObject<PointToPointEpcHelper> ();
   lteHelper->SetEpcHelper (epcHelper);
 
-  PointToPointHelper p2p;
-  p2p.SetDeviceAttribute("DataRate", StringValue ("1000Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
-
   ConfigStore inputConfig;
   inputConfig.ConfigureDefaults();
 
@@ -120,28 +115,17 @@ main (int argc, char *argv[])
 
   NodeContainer ueNodes;
   NodeContainer enbNodes;
-  NodeContainer mecNodes;
   enbNodes.Create(1); //only one eNB
   Ptr<Node> enb = enbNodes.Get(0);
-  mecNodes.Create(1); //one MEC node for now
-  Ptr<Node> mec = mecNodes.Get(0);
   ueNodes.Create(numberOfNodes);
 
-//   Install Mobility Model
+  // Install Mobility Model
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
   positionAlloc->Add (Vector(70.0, 180.0, 10));
   MobilityHelper enbmobility;
   enbmobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   enbmobility.SetPositionAllocator(positionAlloc);
   enbmobility.Install(enbNodes);
-
-  Ptr<ListPositionAllocator> mecPositionAlloc = CreateObject<ListPositionAllocator> ();
-  mecPositionAlloc->Add (Vector(71.0, 180.0, 10));
-  MobilityHelper mecmobility;
-  mecmobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-  mecmobility.SetPositionAllocator(mecPositionAlloc);
-  mecNodes.GetN();
-  mecmobility.Install(mecNodes); //causing segfault!
 
   Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
   for (uint16_t i = 0; i<numberOfNodes; i++) {
@@ -155,15 +139,6 @@ main (int argc, char *argv[])
   // Install LTE Devices to the nodes
   NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
   NetDeviceContainer ueLteDevs = lteHelper->InstallUeDevice (ueNodes);
-  NetDeviceContainer mecDevs = p2p.Install(mecNodes.Get(0), enbNodes.Get(0)); //TODO fix for multiple MECs/eNodeBs (and combinations)
-
-
-  // Install IP stack on MECs
-  internet.Install(mecNodes);
-  Ipv4AddressHelper iph;
-  iph.SetBase("10.1.1.0", "255.255.255.0");
-  Ipv4InterfaceContainer interfaces = iph.Assign(mecDevs); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  Ipv4Address mecAddr = interfaces.GetAddress(0);
 
   // Install the IP stack on the UEs
   internet.Install (ueNodes);
@@ -196,9 +171,8 @@ main (int argc, char *argv[])
   ApplicationContainer clientApps; //UDP and TCP apps on UE
   ApplicationContainer serverApps; //the packet sinks
 
-  bool useMecOnEnb = false; //true --> MEC on eNB
+  bool useMecOnEnb = true; //true --> MEC on eNB
   bool useMecOnPgw = false;//true --> MEC on PGW (if not on eNB)
-  bool useMecOnSeparate = true; //true --> MEC on separate node
   //if both above are false, no MEC, packet sinks are on remote host
 
   for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
@@ -217,10 +191,6 @@ main (int argc, char *argv[])
     else if(useMecOnPgw){
       targetHost = pgw;
       targetAddr = pgwAddr;
-    }
-    else if(useMecOnSeparate){
-      targetHost = mec;
-      targetAddr = mecAddr;
     }
     else {
       targetHost = remoteHost;
@@ -260,14 +230,6 @@ main (int argc, char *argv[])
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
 
-  //NetAnim stuff
-  AnimationInterface anim ("anim_output.xml");
-  anim.SetConstantPosition(enbNodes.Get(0),0,5);
-  anim.SetConstantPosition(mecNodes.Get(0),10,5);
-  for (uint16_t i = 0; i < ueNodes.GetN(); i++) {
-    anim.SetConstantPosition(ueNodes.Get(i), i + 1, 10);
-  }
-
   Simulator::Stop(Seconds(simTime));
   Simulator::Run();
 
@@ -280,4 +242,3 @@ main (int argc, char *argv[])
   return 0;
 
 }
-
