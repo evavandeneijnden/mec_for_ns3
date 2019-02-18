@@ -92,7 +92,7 @@ main (int argc, char *argv[])
 
   Ptr<Node> pgw = epcHelper->GetPgwNode ();
 
-   // Create a single RemoteHost
+  // Create a single RemoteHost
   NodeContainer remoteHostContainer;
   remoteHostContainer.Create (1);
   Ptr<Node> remoteHost = remoteHostContainer.Get (0);
@@ -171,23 +171,23 @@ main (int argc, char *argv[])
   ueIpIface = epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueLteDevs));
   // Assign IP address to UEs, and install applications
   for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
-    {
-      Ptr<Node> ueNode = ueNodes.Get (u);
-      // Set the default gateway for the UE
-      Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
-      ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
-    }
+  {
+    Ptr<Node> ueNode = ueNodes.Get (u);
+    // Set the default gateway for the UE
+    Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
+    ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
+  }
 
   // Attach one UE per eNodeB
   for (uint16_t i = 0; i < numberOfNodes; i++)
-      {
-        //attach one UE per eNB:
-        //lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(i));
-        // side effect: the default EPS bearer will be activated
+  {
+    //attach one UE per eNB:
+    //lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(i));
+    // side effect: the default EPS bearer will be activated
 
-        //attach all UEs to the same eNB:
-        lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(0));
-      }
+    //attach all UEs to the same eNB:
+    lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(0));
+  }
 
 
   // Install and start applications and packet sinks
@@ -202,48 +202,48 @@ main (int argc, char *argv[])
   //if both above are false, no MEC, packet sinks are on remote host
 
   for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
-    {
-      ++udpPort;
-      ++tcpPort;
-      PacketSinkHelper udpPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), udpPort));
-      PacketSinkHelper tcpPacketSinkHelper ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), tcpPort));
+  {
+    ++udpPort;
+    ++tcpPort;
+    PacketSinkHelper udpPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), udpPort));
+    PacketSinkHelper tcpPacketSinkHelper ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), tcpPort));
 
-      Ptr<Node> targetHost;
-      Ipv4Address targetAddr;
-      if(useMecOnEnb){
-        targetHost = epcHelper->GetMecNode(); //TODO: works only for 1 eNB !
-        targetAddr = epcHelper->GetMecAddr();
-      }
-      else if(useMecOnPgw){
-        targetHost = pgw;
-        targetAddr = pgwAddr;
-      }
-      else if(useMecOnSeparate){
-        targetHost = mec;
-        targetAddr = mecAddr;
-      }
-      else {
-        targetHost = remoteHost;
-        targetAddr = remoteHostAddr;
-      }
-
-      serverApps.Add (udpPacketSinkHelper.Install (targetHost));
-      serverApps.Add (tcpPacketSinkHelper.Install (targetHost));
-
-      NS_LOG_LOGIC("targetHostAddr = " << targetAddr);
-      UdpClientHelper ulClient (InetSocketAddress(targetAddr, udpPort));
-      ulClient.SetAttribute ("Interval", TimeValue (MilliSeconds(interPacketInterval)));
-      ulClient.SetAttribute ("MaxPackets", UintegerValue(1000000));
-      ulClient.SetAttribute ("PacketSize", UintegerValue(1400));
-
-      clientApps.Add (ulClient.Install (ueNodes.Get(u)));
-
-      BulkSendHelper TcpClient("ns3::TcpSocketFactory", InetSocketAddress(targetAddr, tcpPort));
-
-      TcpClient.SetAttribute("MaxBytes", UintegerValue(1000000));
-      clientApps.Add(TcpClient.Install(ueNodes.Get(u)));
-
+    Ptr<Node> targetHost;
+    Ipv4Address targetAddr;
+    if(useMecOnEnb){
+      targetHost = epcHelper->GetMecNode(); //TODO: works only for 1 eNB !
+      targetAddr = epcHelper->GetMecAddr();
     }
+    else if(useMecOnPgw){
+      targetHost = pgw;
+      targetAddr = pgwAddr;
+    }
+    else if(useMecOnSeparate){
+      targetHost = mec;
+      targetAddr = mecAddr;
+    }
+    else {
+      targetHost = remoteHost;
+      targetAddr = remoteHostAddr;
+    }
+
+    serverApps.Add (udpPacketSinkHelper.Install (targetHost));
+    serverApps.Add (tcpPacketSinkHelper.Install (targetHost));
+
+    NS_LOG_LOGIC("targetHostAddr = " << targetAddr);
+    UdpClientHelper ulClient (InetSocketAddress(targetAddr, udpPort));
+    ulClient.SetAttribute ("Interval", TimeValue (MilliSeconds(interPacketInterval)));
+    ulClient.SetAttribute ("MaxPackets", UintegerValue(1000000));
+    ulClient.SetAttribute ("PacketSize", UintegerValue(1400));
+
+    clientApps.Add (ulClient.Install (ueNodes.Get(u)));
+
+    BulkSendHelper TcpClient("ns3::TcpSocketFactory", InetSocketAddress(targetAddr, tcpPort));
+
+    TcpClient.SetAttribute("MaxBytes", UintegerValue(1000000));
+    clientApps.Add(TcpClient.Install(ueNodes.Get(u)));
+
+  }
 
   serverApps.Start (Seconds (0.01));
   clientApps.Start (Seconds (0.01));
@@ -265,7 +265,7 @@ main (int argc, char *argv[])
   anim.SetConstantPosition(enbNodes.Get(0),0,5);
   anim.SetConstantPosition(mecNodes.Get(0),10,5);
   for (uint16_t i = 0; i < ueNodes.GetN(); i++) {
-      anim.SetConstantPosition(ueNodes.Get(i), i + 1, 10);
+    anim.SetConstantPosition(ueNodes.Get(i), i + 1, 10);
   }
 
   Simulator::Stop(Seconds(simTime));
