@@ -95,7 +95,11 @@ main (int argc, char *argv[])
     NS_LOG_DEBUG("number of internetIpInterfaces: " << internetIpIfaces.GetN());
     NS_LOG_DEBUG("Expected: 10");
     // interface 0 is localhost, 1 is the p2p device
-    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
+//    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
+    std::vector<Ipv4Address> remoteAddresses;
+    for(uint16_t i = 1; i<internetIpIfaces.GetN(); i+=2){
+        remoteAddresses.push_back(internetIpIfaces.GetAddress(i));
+    }
 
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
     NodeContainer::Iterator j;
@@ -177,6 +181,7 @@ main (int argc, char *argv[])
     ApplicationContainer clientApps;
     ApplicationContainer serverApps;
     NodeContainer::Iterator k;
+    int iteration = 0;
     for (k = remoteHostContainer.Begin (); k != remoteHostContainer.End (); ++k) {
         Ptr<Node> rh = *k;
         for (uint32_t u = 0; u < ueNodes.GetN(); ++u) {
@@ -196,7 +201,7 @@ main (int argc, char *argv[])
             dlClient.SetAttribute("Interval", TimeValue(MilliSeconds(interPacketInterval)));
             dlClient.SetAttribute("MaxPackets", UintegerValue(1000000));
 
-            UdpClientHelper ulClient(remoteHostAddr, ulPort);
+            UdpClientHelper ulClient(remoteAddresses[iteration], ulPort);
             ulClient.SetAttribute("Interval", TimeValue(MilliSeconds(interPacketInterval)));
             ulClient.SetAttribute("MaxPackets", UintegerValue(1000000));
 
@@ -212,6 +217,7 @@ main (int argc, char *argv[])
                 clientApps.Add(client.Install(ueNodes.Get(0)));
             }
         }
+        iteration++;
     }
     serverApps.Start (Seconds (0.01));
     clientApps.Start (Seconds (0.01));
