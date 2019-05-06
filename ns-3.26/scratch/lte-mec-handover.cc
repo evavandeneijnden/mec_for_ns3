@@ -45,17 +45,19 @@ int
 main (int argc, char *argv[])
 {
 
-    uint16_t numberOfNodes = 2;
     double simTime = 5.0;
-    double distance = 60.0;
     double interPacketInterval = 100;
-    double numberOfRemoteHosts = 5;
+    int numberOfUes = 5;
+    int numberOfEnbs = 3;
+    double enb_distance = 4000.0;
+    int numberOfMecs = 4;
+    double mec_distance = 3000.0;
+    double numberOfRemoteHosts = numberOfMecs +1; //One extra for the orchestrator
 
     // Command line arguments
     CommandLine cmd;
-    cmd.AddValue("numberOfNodes", "Number of eNodeBs + UE pairs", numberOfNodes);
+    cmd.AddValue("numberOfMecs", "Number of MECs in the simulation", numberOfMecs);
     cmd.AddValue("simTime", "Total duration of the simulation [s])", simTime);
-    cmd.AddValue("distance", "Distance between eNBs [m]", distance);
     cmd.AddValue("interPacketInterval", "Inter packet interval [ms])", interPacketInterval);
     cmd.Parse(argc, argv);
 
@@ -85,7 +87,7 @@ main (int argc, char *argv[])
     NetDeviceContainer internetDevices;
     NodeContainer::Iterator i;
     for (i = remoteHostContainer.Begin (); i != remoteHostContainer.End (); ++i) {
-       internetDevices.Add(p2ph.Install (pgw, *i));
+        internetDevices.Add(p2ph.Install (pgw, *i));
     }
     Ipv4AddressHelper ipv4h;
     ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
@@ -104,20 +106,44 @@ main (int argc, char *argv[])
 
     NodeContainer ueNodes;
     NodeContainer enbNodes;
-    enbNodes.Create(numberOfNodes);
-    ueNodes.Create(numberOfNodes);
+    enbNodes.Create(numberOfEnbs);
+    ueNodes.Create(numberOfUes);
 
     // Install Mobility Model
-    Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-    for (uint16_t i = 0; i < numberOfNodes; i++)
+    Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
+    for (uint16_t i = 0; i < numberOfEnbs; i++)
     {
-        positionAlloc->Add (Vector(distance * i, 0, 0));
+        enbPositionAlloc->Add (Vector((0.5*enb_distance + enb_distance * i), 9, 0));
     }
-    MobilityHelper mobility;
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-    mobility.SetPositionAllocator(positionAlloc);
-    mobility.Install(enbNodes);
-    mobility.Install(ueNodes);
+    Ptr<ListPositionAllocator> mecPositionAlloc = CreateObject<ListPositionAllocator> ();
+    for (uint16_t i = 0; i < numberOfMecs; i++)
+    {
+        mecPositionAlloc->Add (Vector((0.5*mec_distance + i*mec_distance), 9, 0));
+    }
+    MobilityHelper constantPositionMobility;
+    constantPositionMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    constantPositionMobility.SetPositionAllocator(mecPositionAlloc);
+    constantPositionMobility.Install(remoteHostContainer);
+    constantPositionMobility.SetPositionAllocator(enbPositionAlloc);
+    constantPositionMobility.Install(enbNodes);
+
+    MobilityHelper ueMobility;
+    ueMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
+    ueMobility.Install(ueNodes);
+
+    for(int i = 0; i<numberOfUes; i++){
+        Ptr<Node> node = ueNodes.Get(i);
+        Ptr<ConstantVelocityMobilityModel> mm = node->GetObject<ConstantVelocityMobilityModel>();
+        int strat_int = (i%4);
+        if(strat_int < 2){
+            mm->SetPosition({0.0,double(strat_int*2 + 1),0.0});
+            mm->SetVelocity({27.8, 0, 0});
+        }
+        else {
+            mm->SetPosition({12000.0,double(strat_int*2 + 1),0.0});
+            mm->SetVelocity({-27.8, 0, 0});
+        }
+    }
 
     // Install LTE Devices to the nodes
     NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
@@ -137,9 +163,9 @@ main (int argc, char *argv[])
     }
 
     // Attach one UE per eNodeB
-    for (uint16_t i = 0; i < numberOfNodes; i++)
+    for (uint16_t i = 0; i < numberOfUes; i++)
     {
-        lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(i));
+        lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(0));
         // side effect: the default EPS bearer will be activated
     }
 
