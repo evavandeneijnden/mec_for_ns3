@@ -175,6 +175,9 @@ main (int argc, char *argv[])
 
 
     // Install and start applications on UEs and remote hosts
+
+    //UE applications: pass along argument for ORC inetsocketaddress; always first in remoteHost list?
+
     uint16_t dlPort = 1234;
     uint16_t ulPort = 2000;
     uint16_t otherPort = 3000;
@@ -235,3 +238,4 @@ main (int argc, char *argv[])
     return 0;
 
 }
+
