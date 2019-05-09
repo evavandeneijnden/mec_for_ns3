@@ -28,6 +28,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/trace-source-accessor.h"
 #include "mec-ue-application.h"
+#include <sstream>
 
 namespace ns3 {
 
@@ -38,12 +39,20 @@ namespace ns3 {
     InetSocketAddress m_orcAddress;
     Time m_noSendUntil;
     Time m_requestSent;
+    bool m_requestBlocked = false;
     std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
     std::map<Ipv4Address,Time> m_pingSent;
+    std::vector<InetSocketAddress> m_mecAddresses;
+    uint8_t *m_data_request;
+    uint8_t *m_data_ping;
+    uint8_t *m_data_report;
 
     Ptr<Node> m_thisNode = this->GetNode();
     Ptr<NetDevice> m_thisNetDevice = m_thisNode.GetDevice(0);
     Ipv4Address m_thisIpAddress = InetSocketAddress::ConvertFrom(m_thisNetDevice.GetAddress());  //Used for logging purposes
+
+    InetSocketAddress m_mecAddress;
+    InetSocketAddress m_orcAddress;
 
     TypeId
     MecUeApplication::GetTypeId (void)
@@ -57,10 +66,15 @@ namespace ns3 {
                                UintegerValue (100),
                                MakeUintegerAccessor (&MecUeApplication::m_count),
                                MakeUintegerChecker<uint32_t> ())
-                .AddAttribute ("Interval",
-                               "The time to wait between packets",
+                .AddAttribute ("ServiceInterval",
+                               "The time to wait between serviceRequest packets",
                                TimeValue (Seconds (1.0)),
-                               MakeTimeAccessor (&MecUeApplication::m_interval),
+                               MakeTimeAccessor (&MecUeApplication::m_serviceInterval),
+                               MakeTimeChecker ())
+                .AddAttribute ("PingInterval",
+                               "The time to wait between pingRequest packets",
+                               TimeValue (Seconds (1.0)),
+                               MakeTimeAccessor (&MecUeApplication::m_pingInterval),
                                MakeTimeChecker ())
                 .AddAttribute ("MecAddress",
                                "The destination Address of the outbound packets",
@@ -74,8 +88,7 @@ namespace ns3 {
                                MakeUintegerChecker<uint16_t> ())
                 .AddAttribute ("PacketSize", "Size of echo data in outbound packets",
                                UintegerValue (100),
-                               MakeUintegerAccessor (&MecUeApplication::SetDataSize,
-                                                     &MecUeApplication::GetDataSize),
+                               MakeUintegerAccessor (&MecUeApplication::m_packetSize),
                                MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecUeApplication::m_txTrace),
@@ -84,29 +97,35 @@ namespace ns3 {
         return tid;
     }
 
-    MecUeApplication::MecUeApplication (InetSocketAddress mec, InetSocketAddress orc)
+    MecUeApplication::MecUeApplication (InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses)
     {
         NS_LOG_FUNCTION (this);
         m_sent = 0;
         m_socket = 0;
-        m_sendEvent = EventId ();
-        m_data = 0;
-        m_dataSize = 0;
+        m_sendPingEvent = EventId ();
+        m_sendServiceEvent = EventId ();
+        m_data_request = 0;
+        m_data_ping = 0;
+        m_data_report = 0;
         this.setMec(mec.GetIpv4(), mec.GetPort());
         m_orcAddress = orc;
+        m_mecAddresses = mecAddresses;
     }
 
-    MecUeApplication::~MecUeApplication(InetSocketAddress mec, InetSocketAddress orc)
+    MecUeApplication::~MecUeApplication(InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses)
     {
         NS_LOG_FUNCTION (this);
         m_socket = 0;
 
-        delete [] m_data;
-        m_data = 0;
-        m_dataSize = 0;
+        delete [] m_data_request;
+        delete [] m_data_ping;
+        delete [] m_data_report;
+        m_data_request = 0;
+        m_data_ping = 0;
+        m_data_report = 0;
 
-        this.setMec(mec.GetIpv4(), mec.GetPort());
-        m_orcAddress = orc;
+        m_orcAddress = 0;
+        m_mecAddresses = 0;
     }
 
     void
@@ -117,12 +136,6 @@ namespace ns3 {
         m_mecPort = port;
     }
 
-//    void
-//    MecUeApplication::SetRemote (Address addr)
-//    {
-//        NS_LOG_FUNCTION (this << addr);
-//        m_mecAddress = addr;
-//    }
 
     void
     MecUeApplication::DoDispose (void)
@@ -145,21 +158,11 @@ namespace ns3 {
                 m_socket->Bind();
                 m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_mecAddress), m_mecPort));
             }
-//            else if (Ipv6Address::IsMatchingType(m_mecAddress) == true)
-//            {
-//                m_socket->Bind6();
-//                m_socket->Connect (Inet6SocketAddress (Ipv6Address::ConvertFrom(m_mecAddress), m_mecPort));
-//            }
             else if (InetSocketAddress::IsMatchingType (m_mecAddress) == true)
             {
                 m_socket->Bind ();
                 m_socket->Connect (m_mecAddress);
             }
-//            else if (Inet6SocketAddress::IsMatchingType (m_mecAddress) == true)
-//            {
-//                m_socket->Bind6 ();
-//                m_socket->Connect (m_mecAddress);
-//            }
             else
             {
                 NS_ASSERT_MSG (false, "Incompatible address type: " << m_mecAddress);
@@ -168,7 +171,8 @@ namespace ns3 {
 
         m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
         m_socket->SetAllowBroadcast (true);
-        ScheduleTransmit (Seconds (0.0));
+        ScheduleTransmitServiceRequest (Seconds (0.0));
+        ScheduleTransmitServicePing (Seconds (0.0));
     }
 
     void
@@ -183,88 +187,20 @@ namespace ns3 {
             m_socket = 0;
         }
 
-        Simulator::Cancel (m_sendEvent);
+        Simulator::Cancel (m_sendPingEvent);
+        Simulator::Cancel (m_sendServiceEvent);
     }
 
     void
-    MecUeApplication::SetDataSize (uint32_t dataSize)
+    MecUeApplication::SetFill (uint8_t *fill, uint32_t fillSize, uint8_t *dest)
     {
-        NS_LOG_FUNCTION (this << dataSize);
+        //dest can either be m_data_request or m_data_ping or m_data_report
+        NS_LOG_FUNCTION (this << fill << fillSize << m_packetSize);
 
-        //
-        // If the client is setting the echo packet data size this way, we infer
-        // that she doesn't care about the contents of the packet at all, so
-        // neither will we.
-        //
-        delete [] m_data;
-        m_data = 0;
-        m_dataSize = 0;
-        m_size = dataSize;
-    }
-
-    uint32_t
-    MecUeApplication::GetDataSize (void) const
-    {
-        NS_LOG_FUNCTION (this);
-        return m_size;
-    }
-
-    void
-    MecUeApplication::SetFill (std::string fill)
-    {
-        NS_LOG_FUNCTION (this << fill);
-
-        uint32_t dataSize = fill.size () + 1;
-
-        if (dataSize != m_dataSize)
+        if (fillSize >= m_packetSize)
         {
-            delete [] m_data;
-            m_data = new uint8_t [dataSize];
-            m_dataSize = dataSize;
-        }
-
-        memcpy (m_data, fill.c_str (), dataSize);
-
-        //
-        // Overwrite packet size attribute.
-        //
-        m_size = dataSize;
-    }
-
-    void
-    MecUeApplication::SetFill (uint8_t fill, uint32_t dataSize)
-    {
-        NS_LOG_FUNCTION (this << fill << dataSize);
-        if (dataSize != m_dataSize)
-        {
-            delete [] m_data;
-            m_data = new uint8_t [dataSize];
-            m_dataSize = dataSize;
-        }
-
-        memset (m_data, fill, dataSize);
-
-        //
-        // Overwrite packet size attribute.
-        //
-        m_size = dataSize;
-    }
-
-    void
-    MecUeApplication::SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize)
-    {
-        NS_LOG_FUNCTION (this << fill << fillSize << dataSize);
-        if (dataSize != m_dataSize)
-        {
-            delete [] m_data;
-            m_data = new uint8_t [dataSize];
-            m_dataSize = dataSize;
-        }
-
-        if (fillSize >= dataSize)
-        {
-            memcpy (m_data, fill, dataSize);
-            m_size = dataSize;
+            memcpy (dest, fill, m_packetSize);
+            m_size = m_packetSize;
             return;
         }
 
@@ -272,94 +208,133 @@ namespace ns3 {
         // Do all but the final fill.
         //
         uint32_t filled = 0;
-        while (filled + fillSize < dataSize)
+        while (filled + fillSize < m_packetSize)
         {
-            memcpy (&m_data[filled], fill, fillSize);
+            memcpy (&dest[filled], fill, fillSize);
             filled += fillSize;
         }
 
         //
         // Last fill may be partial
         //
-        memcpy (&m_data[filled], fill, dataSize - filled);
+        memcpy (&dest[filled], fill, m_packetSize - filled);
 
         //
         // Overwrite packet size attribute.
         //
-        m_size = dataSize;
+        m_size = m_packetSize;
     }
 
     void
-    MecUeApplication::ScheduleTransmit (Time dt)
-    {
-        NS_LOG_FUNCTION (this << dt);
-        m_sendEvent = Simulator::Schedule (dt, &MecUeApplication::Send, this);
+    MecUeApplication::SendServiceRequest (void) {
+        NS_ASSERT (m_sendServiceEvent.IsExpired ());
+
+        if (Simulator::Now() < m_noSenduntil){
+            m_requestSent = Simulator::Now();
+            m_requestBlocked = true;
+        }
+        else {
+            if (!m_requestBlocked){
+                m_requestSent = Simulator::Now();
+            }
+            //Create packet payload
+            std::string fillString = "lorem ipsum";
+            uint8_t *buffer = fillString.c_str();
+            SetFill(buffer, m_packetSize, m_data_request);
+
+            //Create packet
+            Ptr<Packet> p = Create<Packet> (m_data_request, m_packetSize);
+            // call to the trace sinks before the packet is actually sent,
+            // so that tags added to the packet can be sent as well
+            m_txTrace (p);
+            m_socket->Send (p);
+
+            ++m_sent;
+
+            if (m_sent < m_count)
+            {
+                m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+            }
+
+            m_requestBlocked = false;
+        }
     }
 
     void
-    MecUeApplication::Send (void)
+    MecUeApplication::SendPing (void)
     {
-//        Old implementation; substitute for a UE-appropriate one
-//        NS_LOG_FUNCTION (this);
-//
-//        NS_ASSERT (m_sendEvent.IsExpired ());
-//
-//        Ptr<Packet> p;
-//        if (m_dataSize)
-//        {
-//            //
-//            // If m_dataSize is non-zero, we have a data buffer of the same size that we
-//            // are expected to copy and send.  This state of affairs is created if one of
-//            // the Fill functions is called.  In this case, m_size must have been set
-//            // to agree with m_dataSize
-//            //
-//            NS_ASSERT_MSG (m_dataSize == m_size, "MecUeApplication::Send(): m_size and m_dataSize inconsistent");
-//            NS_ASSERT_MSG (m_data, "MecUeApplication::Send(): m_dataSize but no m_data");
-//            p = Create<Packet> (m_data, m_dataSize);
-//        }
-//        else
-//        {
-//            //
-//            // If m_dataSize is zero, the client has indicated that it doesn't care
-//            // about the data itself either by specifying the data size by setting
-//            // the corresponding attribute or by not calling a SetFill function.  In
-//            // this case, we don't worry about it either.  But we do allow m_size
-//            // to have a value different from the (zero) m_dataSize.
-//            //
-//            p = Create<Packet> (m_size);
-//        }
-//        // call to the trace sinks before the packet is actually sent,
-//        // so that tags added to the packet can be sent as well
-//        m_txTrace (p);
-//        m_socket->Send (p);
-//
-//        ++m_sent;
-//
-//        if (Ipv4Address::IsMatchingType (m_mecAddress))
-//        {
-//            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client sent " << m_size << " bytes to " <<
-//                                    Ipv4Address::ConvertFrom (m_mecAddress) << " port " << m_mecPort);
-//        }
-//        else if (Ipv6Address::IsMatchingType (m_mecAddress))
-//        {
-//            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client sent " << m_size << " bytes to " <<
-//                                    Ipv6Address::ConvertFrom (m_mecAddress) << " port " << m_mecPort);
-//        }
-//        else if (InetSocketAddress::IsMatchingType (m_mecAddress))
-//        {
-//            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client sent " << m_size << " bytes to " <<
-//                                    InetSocketAddress::ConvertFrom (m_mecAddress).GetIpv4 () << " port " << InetSocketAddress::ConvertFrom (m_mecAddress).GetPort ());
-//        }
-//        else if (Inet6SocketAddress::IsMatchingType (m_mecAddress))
-//        {
-//            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client sent " << m_size << " bytes to " <<
-//                                    Inet6SocketAddress::ConvertFrom (m_mecAddress).GetIpv6 () << " port " << Inet6SocketAddress::ConvertFrom (m_mecAddress).GetPort ());
-//        }
-//
-//        if (m_sent < m_count)
-//        {
-//            ScheduleTransmit (m_interval);
-//        }
+        NS_ASSERT (m_sendPingEvent.IsExpired ());
+        m_pingSent.clear();
+        for (InetSocketAddress mec: m_mecAddresses){
+            if (Simulator::Now() < m_noSenduntil){
+                m_requestSent = Simulator::Now();
+                m_requestBlocked = true;
+            }
+            else {
+                m_pingSent.insert(Pair<Ipv4Address, Time>(mec, Simulator::Now()));
+                m_socket->Bind();
+                m_socket->Connect(mec);
+
+
+                //Create packet payload
+                std::string fillString = "lorem ipsum";
+                uint8_t *buffer = fillString.c_str();
+                SetFill(buffer, m_packetSize, m_data_ping);
+
+                //Create packet
+                Ptr <Packet> p = Create<Packet>(m_data_ping, m_packetSize);
+                // call to the trace sinks before the packet is actually sent,
+                // so that tags added to the packet can be sent as well
+                m_txTrace(p);
+                m_socket->Send(p);
+
+                ++m_sent;
+
+                if (m_sent < m_count) {
+                    m_sendServiceEvent = Simulator::Schedule(m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+                }
+
+                m_requestBlocked = false;
+            }
+        }
+    }
+
+    void
+    MecUeApplication::SendMeasurementReport (std::map<Ipv4Address, uint64_t> measurementReport){
+
+        //Bind to ORC address
+
+        //Create packet payload
+        std::string payload;
+        for(int i = 0; i < measurementReport.size(); i++){
+            std::pair<Ipv4Address, uint64_t> item = measurementReport[i];
+
+            //Convert Address into string
+            Ipv4Address addr = item.first();
+            std::stringstream ss;
+            std:ostream os;
+            addr.Print(os);
+            ss << os.rdbuf();
+            std:string addrString = ss.str();
+
+            payload.push_back(addrString + "/" + std::to_string(item.second()) + "/");
+        }
+        payload.push_back("!"); //! is end character for the measurementReport
+
+
+        std::string fillString = payload;
+        uint8_t *buffer = fillString.c_str();
+        SetFill(buffer, m_packetSize, m_data_report);
+
+        //Create packet
+        Ptr<Packet> p = Create<Packet> (m_data_report, m_packetSize);
+        // call to the trace sinks before the packet is actually sent,
+        // so that tags added to the packet can be sent as well
+        m_txTrace (p);
+        m_socket->Send (p);
+
+        ++m_sent;
+
     }
 
     void
@@ -421,8 +396,27 @@ namespace ns3 {
                         NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "\n");
                     }
                     else{
-                        int64_t delay = (m_pingSent.find(from_ipv4) - Simulator::Now()).GetMilliSeconds();
-                        m_measurementReport.insert(pair<Ipv4Address, int64_t>(from_ipv4, delay));
+                        Time sendTime;
+                        for(int i = 0; i < m_pingSent.size(); i++){
+                            InetSocketAddress itemAddress = m_pingSent[i].first();
+                            if (itemAddress.GetIpv4() == from_ipv4){
+                                sendTime = m_pingSent[i].second();
+                                break;
+                            }
+
+                        }
+
+                        int64_t delay = (sendTime - Simulator::Now()).GetMilliSeconds();
+                        sendTime = 0;
+                        m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
+
+                        if(m_measurementReport.size() == m_mecAddresses.size()){
+                            //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
+                            SendMeasurementReport(m_measurementReport);
+                            m_measurementReport.clear(); //Start with an empty report for the next iteration
+
+
+                        }
                     }
                 }
             }

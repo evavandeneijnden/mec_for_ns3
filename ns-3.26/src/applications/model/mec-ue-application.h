@@ -54,63 +54,8 @@ namespace ns3 {
          * \param ip remote IP address
          * \param port remote port
          */
-        void SetRemote (Address ip, uint16_t port);
-        /**
-         * \brief set the remote address
-         * \param addr remote address
-         */
-        void SetRemote (Address addr);
+        void SetMec (Address ip, uint16_t port);
 
-        /**
-         * Set the data size of the packet (the number of bytes that are sent as data
-         * to the server).  The contents of the data are set to unspecified (don't
-         * care) by this call.
-         *
-         * \warning If you have set the fill data for the echo client using one of the
-         * SetFill calls, this will undo those effects.
-         *
-         * \param dataSize The size of the echo data you want to sent.
-         */
-        void SetDataSize (uint32_t dataSize);
-
-        /**
-         * Get the number of data bytes that will be sent to the server.
-         *
-         * \warning The number of bytes may be modified by calling any one of the
-         * SetFill methods.  If you have called SetFill, then the number of
-         * data bytes will correspond to the size of an initialized data buffer.
-         * If you have not called a SetFill method, the number of data bytes will
-         * correspond to the number of don't care bytes that will be sent.
-         *
-         * \returns The number of data bytes.
-         */
-        uint32_t GetDataSize (void) const;
-
-        /**
-         * Set the data fill of the packet (what is sent as data to the server) to
-         * the zero-terminated contents of the fill string string.
-         *
-         * \warning The size of resulting echo packets will be automatically adjusted
-         * to reflect the size of the fill string -- this means that the PacketSize
-         * attribute may be changed as a result of this call.
-         *
-         * \param fill The string to use as the actual echo data bytes.
-         */
-        void SetFill (std::string fill);
-
-        /**
-         * Set the data fill of the packet (what is sent as data to the server) to
-         * the repeated contents of the fill byte.  i.e., the fill byte will be
-         * used to initialize the contents of the data packet.
-         *
-         * \warning The size of resulting echo packets will be automatically adjusted
-         * to reflect the dataSize parameter -- this means that the PacketSize
-         * attribute may be changed as a result of this call.
-         *
-         * \param fill The byte to be repeated in constructing the packet data..
-         * \param dataSize The desired size of the resulting echo packet data.
-         */
-        void SetFill (uint8_t fill, uint32_t dataSize);
 
         /**
          * Set the data fill of the packet (what is sent as data to the server) to
@@ -157,8 +102,16 @@ namespace ns3 {
          */
         void HandleRead (Ptr<Socket> socket);
 
+
+        void SendServiceRequest(void);
+        void SendPing(void);
+        void SendMeasurementReport (std::map<Ipv4Address, uint64_t> measurementReport);
+
+
+
         uint32_t m_count; //!< Maximum number of packets the application will send
-        Time m_interval; //!< Packet inter-send time
+        Time m_serviceInterval; //!< Packet inter-send time
+        Time m_pingInterval;
         uint32_t m_size; //!< Size of the sent packet
 
         uint32_t m_dataSize; //!< packet payload size (must be equal to m_size)
@@ -166,12 +119,29 @@ namespace ns3 {
 
         uint32_t m_sent; //!< Counter for sent packets
         Ptr<Socket> m_socket; //!< Socket
-        Address m_peerAddress; //!< Remote peer address
-        uint16_t m_peerPort; //!< Remote peer port
+        Address m_mecAddress; //!< Remote peer address
+        uint16_t m_mecPort; //!< Remote peer port
         EventId m_sendEvent; //!< Event to send the next packet
 
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;
+
+
+        //Added
+        InetSocketAddress m_orcAddress;
+        Time m_noSendUntil;
+        Time m_requestSent;
+        bool m_requestBlocked;
+        std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
+        std::map<Ipv4Address,Time> m_pingSent;
+        std::vector<InetSocketAddress> m_mecAddresses;
+        uint8_t *m_data_request;
+        uint8_t *m_data_ping;
+        uint8_t *m_data_report;
+        Ptr<Node> m_thisNode;
+        Ptr<NetDevice> m_thisNetDevice;
+        Ipv4Address m_thisIpAddress;
+        uint32_t m_packetSize;
     };
 
 } // namespace ns3
