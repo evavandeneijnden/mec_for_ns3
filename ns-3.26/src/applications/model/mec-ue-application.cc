@@ -229,6 +229,9 @@ namespace ns3 {
     MecUeApplication::SendServiceRequest (void) {
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
+        m_socket->Bind();
+        m_socket->Connect (InetSocketAddress (m_mecAddress, m_mecPort));
+
         if (Simulator::Now() < m_noSenduntil){
             m_requestSent = Simulator::Now();
             m_requestBlocked = true;
@@ -303,6 +306,8 @@ namespace ns3 {
     MecUeApplication::SendMeasurementReport (std::map<Ipv4Address, uint64_t> measurementReport){
 
         //Bind to ORC address
+        m_socket->Bind();
+        m_socket->Connect (m_orcAddress);
 
         //Create packet payload
         std::string payload;
