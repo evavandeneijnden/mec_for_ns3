@@ -1628,6 +1628,11 @@ LteEnbRrc::GetUeManager (uint16_t rnti)
   return it->second;
 }
 
+std::map<uint16_t, Ptr<UeManager>>
+LteEnbRrc::GetUeMap(){
+  return m_ueMap;
+}
+
 uint8_t
 LteEnbRrc::AddUeMeasReportConfig (LteRrcSap::ReportConfigEutra config)
 {

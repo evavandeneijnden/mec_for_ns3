@@ -863,6 +863,8 @@ public:
   typedef void (* ReceiveReportTracedCallback)
     (uint64_t imsi, uint16_t cellId, uint16_t rnti,
      LteRrcSap::MeasurementReport report);
+
+  std::map<uint16_t, Ptr<UeManager>> GetUeMap(void);
   
 private:
 

@@ -46,6 +46,9 @@ namespace ns3 {
     uint8_t *m_data_request;
     uint8_t *m_data_ping;
     uint8_t *m_data_report;
+    Event m_sendPingEvent;
+    Event m_sendServiceEvent;
+    std::vector<LteEnbNetDevice>> m_enbDevices;
 
     Ptr<Node> m_thisNode = this->GetNode();
     Ptr<NetDevice> m_thisNetDevice = m_thisNode.GetDevice(0);
@@ -97,7 +100,7 @@ namespace ns3 {
         return tid;
     }
 
-    MecUeApplication::MecUeApplication (InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses)
+    MecUeApplication::MecUeApplication (InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses, std::vector<LteEnbNetDevice>> enbDevices)
     {
         NS_LOG_FUNCTION (this);
         m_sent = 0;
@@ -110,9 +113,10 @@ namespace ns3 {
         this.setMec(mec.GetIpv4(), mec.GetPort());
         m_orcAddress = orc;
         m_mecAddresses = mecAddresses;
+        m_enbDevices = enbDevices;
     }
 
-    MecUeApplication::~MecUeApplication(InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses)
+    MecUeApplication::~MecUeApplication(InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses, std::vector<LteEnbNetDevice>> enbDevices)
     {
         NS_LOG_FUNCTION (this);
         m_socket = 0;
@@ -126,6 +130,7 @@ namespace ns3 {
 
         m_orcAddress = 0;
         m_mecAddresses = 0;
+        m_enbDevices = 0;
     }
 
     void
@@ -171,8 +176,8 @@ namespace ns3 {
 
         m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
         m_socket->SetAllowBroadcast (true);
-        ScheduleTransmitServiceRequest (Seconds (0.0));
-        ScheduleTransmitServicePing (Seconds (0.0));
+        SendServiceRequest (Seconds (0.0));
+        SendPing (Seconds (0.0));
     }
 
     void
@@ -225,6 +230,24 @@ namespace ns3 {
         m_size = m_packetSize;
     }
 
+    uint16_t MecUeApplication::GetEnb(){
+
+        LteUeNetDevice lteDevice = LteUeNetDevice (m_thisNode->GetDevice());
+        uint64_t ueImsi = lteDevice.GetImsi();
+
+        for(Ptr<LteEnbNetDevice> enb: m_enbDevices){
+            LteEnbRrc rrc = enb->GetRrc();cl
+            std::map<uint16_t, Ptr<UeManager>> ueMap = rrc.GetUeMap();
+            for(int i = 0; ueMap.size(); i++){
+                UeManager manager = ueMap[i].second();
+                unint64_t imsi = manager.GetImsi();
+                if(ueImsi == imsi){
+                    return enb.GetCellId();
+                }
+            }
+        }
+    }
+
     void
     MecUeApplication::SendServiceRequest (void) {
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
@@ -240,8 +263,8 @@ namespace ns3 {
             if (!m_requestBlocked){
                 m_requestSent = Simulator::Now();
             }
-            //Create packet payload
-            std::string fillString = "lorem ipsum";
+            //Create packet payloadU
+            std::string fillString = str(GetEnb()) + "/";
             uint8_t *buffer = fillString.c_str();
             SetFill(buffer, m_packetSize, m_data_request);
 
@@ -417,7 +440,7 @@ namespace ns3 {
 
                         if(m_measurementReport.size() == m_mecAddresses.size()){
                             //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
-                            SendMeasurementReport(m_measurementReport);
+                            Simulator::Schedule(Seconds(0), &SendMeasurementReport, m_measurementReport);
                             m_measurementReport.clear(); //Start with an empty report for the next iteration
 
 

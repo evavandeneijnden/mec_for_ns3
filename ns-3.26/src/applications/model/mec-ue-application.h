@@ -84,16 +84,6 @@ namespace ns3 {
         virtual void StopApplication (void);
 
         /**
-         * \brief Schedule the next packet transmission
-         * \param dt time interval between packets.
-         */
-        void ScheduleTransmit (Time dt);
-        /**
-         * \brief Send a packet
-         */
-        void Send (void);
-
-        /**
          * \brief Handle a packet reception.
          *
          * This function is called by lower layers.
@@ -114,14 +104,13 @@ namespace ns3 {
         Time m_pingInterval;
         uint32_t m_size; //!< Size of the sent packet
 
-        uint32_t m_dataSize; //!< packet payload size (must be equal to m_size)
-        uint8_t *m_data; //!< packet payload data
 
         uint32_t m_sent; //!< Counter for sent packets
         Ptr<Socket> m_socket; //!< Socket
         Address m_mecAddress; //!< Remote peer address
         uint16_t m_mecPort; //!< Remote peer port
-        EventId m_sendEvent; //!< Event to send the next packet
+        m_sendPingEvent;
+        m_sendServiceEvent;
 
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;
@@ -146,4 +135,4 @@ namespace ns3 {
 
 } // namespace ns3
 
-#endif /* UDP_ECHO_CLIENT_H */
+#endif /* MEC_UE_APPLICATION_H */
