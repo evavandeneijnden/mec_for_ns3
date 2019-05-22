@@ -201,7 +201,7 @@ namespace ns3 {
         m_expectedWaitingTime = int((expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime)*1000);
 
         //Create packet payload
-        std::string fillString = std::to_string(m_expectedWaitingTime) + "/";
+        std::string fillString = "5/" + std::to_string(m_expectedWaitingTime) + "/";
         uint8_t *buffer = fillString.c_str();
         uint8_t *payload = SetFill(buffer, buffer.size(), m_packetSize);
 
@@ -287,7 +287,7 @@ namespace ns3 {
                     std::string portString = args[1];
 
                     Ipv4Address newAddress = Ipv4Address();
-                    newAdress.Set(addressString.c_str);
+                    newAdress.Set(addressString.c_str());
 
                     uint16_t newPort = std::stoi(portString);
 

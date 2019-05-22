@@ -334,20 +334,26 @@ namespace ns3 {
 
         //Create packet payload
         std::string payload;
+        //Convert current mec address into string
+        Ipv4Address mec_addr = m_mecAddress.GetIpv4();
+        std::stringstream ss;
+        std:ostream os;
+        mec_addr.Print(os);
+        ss << os.rdbuf();
+        std:string mec_addrString = ss.str();
+        payload.push_back("2/" + mec_addrString + "/");
         for(int i = 0; i < measurementReport.size(); i++){
             std::pair<Ipv4Address, uint64_t> item = measurementReport[i];
 
             //Convert Address into string
             Ipv4Address addr = item.first();
-            std::stringstream ss;
-            std:ostream os;
             addr.Print(os);
             ss << os.rdbuf();
             std:string addrString = ss.str();
 
-            payload.push_back(addrString + "/" + std::to_string(item.second()) + "/");
+            payload.push_back(addrString + "!" + std::to_string(item.second()) + "!");
         }
-        payload.push_back("!"); //! is end character for the measurementReport
+        payload.push_back("/"); //! is separator character for the measurementReport
 
 
         std::string fillString = payload;
