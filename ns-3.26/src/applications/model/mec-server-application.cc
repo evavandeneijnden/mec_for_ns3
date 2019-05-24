@@ -56,6 +56,7 @@ namespace ns3 {
     int m_noHandovers = 0;
     Time m_startTime;
     Ptr<LteEnbNetDevice> m_enb;
+    Time noSendUntil = Simulator::Now();
 
     TypeId
     MecServerApplication::GetTypeId (void)
@@ -184,69 +185,86 @@ namespace ns3 {
 
     void
     MecServerApplication::SendWaitingTimeUpdate (void) {
-        NS_ASSERT (m_sendEvent.IsExpired ());
+        NS_ASSERT(m_sendEvent.IsExpired());
 
-        //Bind to correct destination (ORC)
-        m_socket->Bind();
-        m_socket->Connect (m_orcAddress);
+        if (Simulator::Now() > noSendUntil) {
+            //Bind to correct destination (ORC)
+            m_socket->Bind();
+            m_socket->Connect(m_orcAddress);
 
-        //Calculate waiting time (in ms)
-        double serviceRho = (m_noClients*MSG_FREQ)/MEC_RATE;
-        double expectedServiceWaitingTime = (serviceRho/(1-serviceRho))*(1/MEC_RATE);
-        int pingRho = (m_noUes*MEAS_FREQ)/MEC_RATE;
-        double expectedPingWaitingTime = (pingRho/(1-pingRho))*(1/MEC_RATE);
-        double handoverFrequency = m_noHandovers/((Simulator::Now() - m_startTime).GetSeconds());
-        int handoverRho = handoverFrequency/MEC_RATE;
-        double expectedHandoverWaitingTime = (handoverRho/(1-handoverRho))*(1/MEC_RATE);
-        m_expectedWaitingTime = int((expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime)*1000);
+            //Calculate waiting time (in ms)
+            double serviceRho = (m_noClients * MSG_FREQ) / MEC_RATE;
+            double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * (1 / MEC_RATE);
+            int pingRho = (m_noUes * MEAS_FREQ) / MEC_RATE;
+            double expectedPingWaitingTime = (pingRho / (1 - pingRho)) * (1 / MEC_RATE);
+            double handoverFrequency = m_noHandovers / ((Simulator::Now() - m_startTime).GetSeconds());
+            int handoverRho = handoverFrequency / MEC_RATE;
+            double expectedHandoverWaitingTime = (handoverRho / (1 - handoverRho)) * (1 / MEC_RATE);
+            m_expectedWaitingTime = int(
+                    (expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime) * 1000);
 
-        //Create packet payload
-        std::string fillString = "5/" + std::to_string(m_expectedWaitingTime) + "/";
-        uint8_t *buffer = fillString.c_str();
-        uint8_t *payload = SetFill(buffer, buffer.size(), m_packetSize);
+            //Create packet payload
+            std::string fillString = "5/" + std::to_string(m_expectedWaitingTime) + "/";
+            uint8_t *buffer = fillString.c_str();
+            uint8_t *payload = SetFill(buffer, buffer.size(), m_packetSize);
 
-        //Send packet
-        Ptr<Packet> p = Create<Packet> (payload, m_packetSize);
-        m_txTrace (p);
-        m_socket->Send (p);
+            //Send packet
+            Ptr <Packet> p = Create<Packet>(payload, m_packetSize);
+            m_txTrace(p);
+            m_socket->Send(p);
 
-        ++m_sent;
+            ++m_sent;
 
-        if (m_sent < m_count)
-        {
-            m_sendEvent = Simulator::Schedule (m_updateInterval, &MecServerApplication::SendWaitingTimeUpdate, this);
+            if (m_sent < m_count) {
+                m_sendEvent = Simulator::Schedule(m_updateInterval, &MecServerApplication::SendWaitingTimeUpdate, this);
+            }
         }
+        else {
+            SendWaitingTimeUpdate();
+        }
+
+    }
 
     void
     MecServerApplication::SendUeTransfer (InetSocketAddress newMec)
     {
-        m_socket->Bind();
-        m_socket->Connect(newMec);
+        if (Simulator::Now() > noSendUntil){
+            m_socket->Bind();
+            m_socket->Connect(newMec);
 
-        //Create packet payload
-        std::string fillString = "lorem ipsum";
-        uint8_t *buffer = fillString.c_str();
-        unint8_t *payload = SetFill(buffer, buffer.size(), UE_SIZE);
+            //Create packet payload
+            std::string fillString = "lorem ipsum";
+            uint8_t *buffer = fillString.c_str();
+            unint8_t *payload = SetFill(buffer, buffer.size(), UE_SIZE);
 
-        //Create packet
-        Ptr <Packet> p = Create<Packet>(payload, UE_SIZE);
-        // call to the trace sinks before the packet is actually sent,
-        // so that tags added to the packet can be sent as well
-        m_txTrace(p);
-        m_socket->Send(p);
+            //Create packet
+            Ptr <Packet> p = Create<Packet>(payload, UE_SIZE);
+            // call to the trace sinks before the packet is actually sent,
+            // so that tags added to the packet can be sent as well
+            m_txTrace(p);
+            m_socket->Send(p);
 
-        ++m_sent;
+            ++m_sent;
+        }
+        else {
+            SendUeTransfer(newMec);
+        }
+
     }
 
 
         void
         MecServerApplication::SendEcho (Packet packet)
         {
+            if(Simulator::Now() > noSendUntil){
+                m_txTrace(packet);
+                m_socket->Send(packet);
 
-            m_txTrace(packet);
-            m_socket->Send(packet);
-
-            ++m_sent;
+                ++m_sent;
+            }
+            else {
+                SendEcho(packet);
+            }
         }
 
     void
@@ -319,7 +337,7 @@ namespace ns3 {
                         break;
                     case "7":
                         //handover data from other mec
-                        //TODO do nothing for m_expectedWaitingTime
+                        noSendUntil = Simulator::Now() + m_expectedWaitingTime;
                         break;
                 }
             }
