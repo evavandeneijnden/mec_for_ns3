@@ -261,83 +261,68 @@ namespace ns3 {
             {
                 InetSocketAddress inet_from = InetSocketAddress::ConvertFrom(from);
                 Ipv4Address from_ipv4 = inet_from.GetIpv4();
-                if (from_ipv4 == m_orcAddress.GetIpv4() && inet_from.GetPort() == m_orcAddress.GetPort()){
 
-                    //Get payload from packet
-                    uint32_t packetSize = packet->GetSize();
-                    uint8_t *buffer = new uint8_t[packetSize];
-                    packet->CopyData(buffer, packetSize);
-                    std::string payloadString = std::string((char*)buffer);
+                //Get payload from packet
+                uint32_t packetSize = packet->GetSize();
+                uint8_t *buffer = new uint8_t[packetSize];
+                packet->CopyData(buffer, packetSize);
+                std::string payloadString = std::string((char*)buffer);
 
-                    //Split the payload string into arguments
-                    std::string tempString;
-                    std::vector<std::string> args;
-                    for (int i = 0 ; i < payloadString.length(); i++){
-                        char c = payloadString[i];
-                        if(c == "/"){
-                            args.push_back(tempString);
-                            tempString = "";
-                        }
-                        else{
-                            tempString.push_back(c);
-                        }
+                //Split the payload string into arguments
+                std::string tempString;
+                std::vector<std::string> args;
+                for (int i = 0 ; i < payloadString.length(); i++){
+                    char c = payloadString[i];
+                    if(c == "/"){
+                        args.push_back(tempString);
+                        tempString = "";
                     }
-                    //Get new MEC address
-                    std::string addressString = args[0];
-                    std::string portString = args[1];
-
-                    Ipv4Address newAddress = Ipv4Address();
-                    newAdress.Set(addressString.c_str());
-
-                    uint16_t newPort = std::stoi(portString);
-
-                    //Initiate handover
-                    Simulator::Schedule(Seconds(0), &SendUeTransfer, InetSocketAddress(newAddress, newPort));
-
-                }
-                else {
-                    //Get payload from packet
-                    uint32_t packetSize = packet->GetSize();
-                    uint8_t *buffer = new uint8_t[packetSize];
-                    packet->CopyData(buffer, packetSize);
-                    std::string payloadString = std::string((char*)buffer);
-
-                    //Split the payload string into arguments
-                    std::string tempString;
-                    std::vector<std::string> args;
-                    for (int i = 0 ; i < payloadString.length(); i++){
-                        char c = payloadString[i];
-                        if(c == "/"){
-                            args.push_back(tempString);
-                            tempString = "";
-                        }
-                        else{
-                            tempString.push_back(c);
-                        }
-                    }
-
-                    Ptr<LteEnbNetDevice> ue_enb = args[0];
-                    int delay = 0; //in ms
-
-                    if (m_enb.GetCellId() == ue_enb){
-                        delay = m_expectedWaitingTime;
-                    }
-                    else {
-                        //UE is connected to another eNB; add "penalty" for having to go through network
-                        delay = m_expectedWaitingTime + 15;
+                    else{
+                        tempString.push_back(c);
                     }
                 }
 
-                //Bind to correct socket
-                m_socket->Bind ();
-                m_socket->Connect (inet_from);
+                switch(args[0]){
+                    case "1":
+                        //service request from ue
+                        Ptr<LteEnbNetDevice> ue_enb = args[1];
+                        int delay = 0; //in ms
 
-                //Echo packet back to sender with appropriate delay
-                Simulator::Schedule(Milliseconds(delay), &SendEcho, packet);
+                        if (m_enb.GetCellId() == ue_enb){
+                            delay = m_expectedWaitingTime;
+                        }
+                        else {
+                            //UE is connected to another eNB; add "penalty" for having to go through network
+                            delay = m_expectedWaitingTime + 15;
+                        }
+                        //Bind to correct socket
+                        m_socket->Bind ();
+                        m_socket->Connect (inet_from);
 
+                        //Echo packet back to sender with appropriate delay
+                        Simulator::Schedule(Milliseconds(delay), &SendEcho, packet);
+
+                        break;
+                    case "4":
+                        //handover command from orc
+                        //Get new MEC address
+                        std::string addressString = args[1];
+                        std::string portString = args[2];
+
+                        Ipv4Address newAddress = Ipv4Address();
+                        newAdress.Set(addressString.c_str());
+
+                        uint16_t newPort = std::stoi(portString);
+
+                        //Initiate handover
+                        Simulator::Schedule(Seconds(0), &SendUeTransfer, InetSocketAddress(newAddress, newPort));
+                        break;
+                    case "7":
+                        //handover data from other mec
+                        //TODO do nothing for m_expectedWaitingTime
+                        break;
                 }
             }
         }
     }
-//
 } // Namespace ns3

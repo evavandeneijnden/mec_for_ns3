@@ -36,7 +36,6 @@ namespace ns3 {
 
     NS_OBJECT_ENSURE_REGISTERED (MecUeApplication);
 
-    InetSocketAddress m_orcAddress;
     Time m_noSendUntil;
     Time m_requestSent;
     bool m_requestBlocked = false;
@@ -264,7 +263,7 @@ namespace ns3 {
                 m_requestSent = Simulator::Now();
             }
             //Create packet payloadU
-            std::string fillString = str(GetEnb()) + "/";
+            std::string fillString = "1/" + str(GetEnb()) + "/";
             uint8_t *buffer = fillString.c_str();
             SetFill(buffer, m_packetSize, m_data_request);
 
@@ -303,7 +302,7 @@ namespace ns3 {
 
 
                 //Create packet payload
-                std::string fillString = "lorem ipsum";
+                std::string fillString = "1/";
                 uint8_t *buffer = fillString.c_str();
                 SetFill(buffer, m_packetSize, m_data_ping);
 
@@ -383,75 +382,78 @@ namespace ns3 {
             {
                 InetSocketAddress inet_from = InetSocketAddress::ConvertFrom(from);
                 Ipv4Address from_ipv4 = inet_from.GetIpv4();
-                if (from_ipv4 == m_orcAddress.GetIpv4() && inet_from.GetPort() == m_orcAddress.GetPort()){
-                    //Get payload from packet
-                    uint32_t packetSize = packet->GetSize();
-                    uint8_t *buffer = new uint8_t[packetSize];
-                    packet->CopyData(buffer, packetSize);
-                    std::string payloadString = std::string((char*)buffer);
 
-                    //Split the payload string into arguments
-                    std::string tempString;
-                    std::vector<std::string> args;
-                    for (int i = 0 ; i < payloadString.length(); i++){
-                        char c = payloadString[i];
-                        if(c == "/"){
-                            args.push_back(tempString);
-                            tempString = "";
-                        }
-                        else{
-                            tempString.push_back(c);
-                        }
-                    }
-                     //Get new MEC address
-                     std::string addressString = args[0];
-                     std::string portString = args[1];
+                //Get payload from packet
+                uint32_t packetSize = packet->GetSize();
+                uint8_t *buffer = new uint8_t[packetSize];
+                packet->CopyData(buffer, packetSize);
+                std::string payloadString = std::string((char*)buffer);
 
-                     Ipv4Address newAddress = Ipv4Address();
-                     newAdress.Set(addressString.c_str);
-
-                     uint16_t newPort = std::stoi(portString);
-
-                    //Update MEC address
-                    NS_LOG_INFO("Handover," Simulator::Now()<< "," << m_thisIpAddress << "," << mecAddress << "," << newAddress << "\n");
-                    setMec(newAddress, newPort);
-                    m_socket->Bind();
-                    m_socket->Connect (InetSocketAddress (newAddress, newPort));
-
-                    //Set no-send period
-                    m_noSendUntil = Simulator::Now() + Time(args[2]);
-
-
-                }
-                else {
-                    //This request came from a MEC
-                    if (from_ipv4 == m_mecAddress && inet_from.GetPort() == m_mecPort){
-                        int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
-                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "\n");
+                //Split the payload string into arguments
+                std::string tempString;
+                std::vector<std::string> args;
+                for (int i = 0 ; i < payloadString.length(); i++){
+                    char c = payloadString[i];
+                    if(c == "/"){
+                        args.push_back(tempString);
+                        tempString = "";
                     }
                     else{
-                        Time sendTime;
-                        for(int i = 0; i < m_pingSent.size(); i++){
-                            InetSocketAddress itemAddress = m_pingSent[i].first();
-                            if (itemAddress.GetIpv4() == from_ipv4){
-                                sendTime = m_pingSent[i].second();
-                                break;
+                        tempString.push_back(c);
+                    }
+                }
+
+                switch(args[0]){
+                    case "2":
+                        //This request came from a MEC
+                        if (from_ipv4 == m_mecAddress && inet_from.GetPort() == m_mecPort){
+                            int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
+                            NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "\n");
+                        }
+                        else{
+                            Time sendTime;
+                            for(int i = 0; i < m_pingSent.size(); i++){
+                                InetSocketAddress itemAddress = m_pingSent[i].first();
+                                if (itemAddress.GetIpv4() == from_ipv4){
+                                    sendTime = m_pingSent[i].second();
+                                    break;
+                                }
+
                             }
 
+                            int64_t delay = (Simulator::Now()).GetMilliSeconds() - sendTime;
+                            sendTime = 0;
+                            m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
+
+                            if(m_measurementReport.size() == m_mecAddresses.size()){
+                                //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
+                                Simulator::Schedule(Seconds(0), &SendMeasurementReport, m_measurementReport);
+                                m_measurementReport.clear(); //Start with an empty report for the next iteration
+
+
+                            }
                         }
+                        break;
+                    case "6":
+                        //Handover command
+                        //Get new MEC address
+                        std::string addressString = args[1];
+                        std::string portString = args[2];
 
-                        int64_t delay = (sendTime - Simulator::Now()).GetMilliSeconds();
-                        sendTime = 0;
-                        m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
+                        Ipv4Address newAddress = Ipv4Address();
+                        newAdress.Set(addressString.c_str);
 
-                        if(m_measurementReport.size() == m_mecAddresses.size()){
-                            //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
-                            Simulator::Schedule(Seconds(0), &SendMeasurementReport, m_measurementReport);
-                            m_measurementReport.clear(); //Start with an empty report for the next iteration
+                        uint16_t newPort = std::stoi(portString);
 
+                        //Update MEC address
+                        NS_LOG_INFO("Handover," Simulator::Now()<< "," << m_thisIpAddress << "," << mecAddress << "," << newAddress << "\n");
+                        setMec(newAddress, newPort);
+                        m_socket->Bind();
+                        m_socket->Connect (InetSocketAddress (newAddress, newPort));
 
-                        }
-                    }
+                        //Set no-send period
+                        m_noSendUntil = Simulator::Now() + Time(args[3]);
+                        break;
                 }
             }
         }

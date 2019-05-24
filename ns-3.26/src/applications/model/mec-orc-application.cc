@@ -176,7 +176,7 @@ MecOrcApplication::SendUeHandover (InetSocketAddress ueAddress, InetSocketAddres
     std:string addrString = ss.str();
 
     //Create packet payload
-    std::string fillString = addrString + "/" + str(newMecAddress.GetPort() + "/";
+    std::string fillString = "6/" + addrString + "/" + str(newMecAddress.GetPort() + "/";
     uint8_t *buffer = fillString.c_str();
 
     SetFill(buffer, m_packetSize, m_data_request);
@@ -218,7 +218,7 @@ MecOrcApplication::SendMecHandover (InetSocketAddress ueAddress, InetSocketAddre
     std:string newMecAddrString = ss.str();
 
     //Create packet payload
-    std::string fillString = ueAddrString + "/" + str(ueAddress.GetPort()) + "/" + newMecAddrString + "/" + str(newMecAddress.GetPort()) + "/";
+    std::string fillString = "4/" + ueAddrString + "/" + str(ueAddress.GetPort()) + "/" + newMecAddrString + "/" + str(newMecAddress.GetPort()) + "/";
     uint8_t *buffer = fillString.c_str();
     SetFill(buffer, m_packetSize, m_data_ping);
 
@@ -266,7 +266,7 @@ MecOrcApplication::HandleRead (Ptr<Socket> socket)
 
             //Choose which type of message this is based on args[0]
             switch(args[0]){
-                case 3:
+                case "3":
                     //This is a measurement report from a UE
                     Ipv4Address currentMecAddr = Ipv4Address();
                     currentMecAddr.Set(args[1].c_str());
@@ -343,7 +343,7 @@ MecOrcApplication::HandleRead (Ptr<Socket> socket)
                     SendMecHandover(ueAddress, mecAddress);
                     }
                     break;
-                case 5:
+                case "5":
                     int newWaitingTime = int(args[1]);
                     InetSocketAddress sendAddress = InetSocketaddress::ConvertFrom(from);
 
