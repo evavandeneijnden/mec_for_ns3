@@ -39,9 +39,9 @@ namespace ns3 {
     Time m_noSendUntil;
     Time m_requestSent;
     bool m_requestBlocked = false;
-    std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
+    std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is server address, second is observed delay in ms
     std::map<Ipv4Address,Time> m_pingSent;
-    std::vector<InetSocketAddress> m_mecAddresses;
+
     uint8_t *m_data_request;
     uint8_t *m_data_ping;
     uint8_t *m_data_report;
@@ -79,19 +79,23 @@ namespace ns3 {
                                MakeTimeAccessor (&MecUeApplication::m_pingInterval),
                                MakeTimeChecker ())
                 .AddAttribute ("MecAddress",
-                               "The destination Address of the outbound packets",
+                               "InetSocketAddress of the server ti which this UE is connected",
                                AddressValue (),
                                MakeAddressAccessor (&MecUeApplication::m_mecAddress),
                                MakeAddressChecker ())
-                .AddAttribute ("MecPort",
-                               "The destination port of the outbound packets",
-                               UintegerValue (0),
-                               MakeUintegerAccessor (&MecUeApplication::m_mecPort),
-                               MakeUintegerChecker<uint16_t> ())
+                .AddAttribute ("OrcAddress",
+                               "InetSocketAddress of the orchestrator to which this UE is connected",
+                               AddressValue (),
+                               MakeAddressAccessor (&MecUeApplication::m_orcAddress),
+                               MakeAddressChecker ())
                 .AddAttribute ("PacketSize", "Size of echo data in outbound packets",
                                UintegerValue (100),
                                MakeUintegerAccessor (&MecUeApplication::m_packetSize),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("AllServers", "Container of all server addresses",
+                               ObjectPtrContainerValue(),
+                               ObjectPtrContainerAccessor (&MecUeApplication::m_allServers),
+                               ObjectPtrContainerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecUeApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -99,7 +103,7 @@ namespace ns3 {
         return tid;
     }
 
-    MecUeApplication::MecUeApplication (InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses, std::vector<LteEnbNetDevice>> enbDevices)
+    MecUeApplication::MecUeApplication (std::vector<InetSocketAddress> mecAddresses, std::vector<LteEnbNetDevice>> enbDevices)
     {
         NS_LOG_FUNCTION (this);
         m_sent = 0;
@@ -109,13 +113,12 @@ namespace ns3 {
         m_data_request = 0;
         m_data_ping = 0;
         m_data_report = 0;
-        this.setMec(mec.GetIpv4(), mec.GetPort());
-        m_orcAddress = orc;
+        m_mecAddress = 0;
         m_mecAddresses = mecAddresses;
         m_enbDevices = enbDevices;
     }
 
-    MecUeApplication::~MecUeApplication(InetSocketAddress mec, InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses, std::vector<LteEnbNetDevice>> enbDevices)
+    MecUeApplication::~MecUeApplication(std::vector<InetSocketAddress> mecAddresses, std::vector<LteEnbNetDevice>> enbDevices)
     {
         NS_LOG_FUNCTION (this);
         m_socket = 0;
@@ -127,19 +130,9 @@ namespace ns3 {
         m_data_ping = 0;
         m_data_report = 0;
 
-        m_orcAddress = 0;
         m_mecAddresses = 0;
         m_enbDevices = 0;
     }
-
-    void
-    MecUeApplication::SetMec (Address ip, uint16_t port)
-    {
-        NS_LOG_FUNCTION (this << ip << port);
-        m_mecAddress = ip;
-        m_mecPort = port;
-    }
-
 
     void
     MecUeApplication::DoDispose (void)
@@ -160,7 +153,7 @@ namespace ns3 {
             if (Ipv4Address::IsMatchingType(m_mecAddress) == true)
             {
                 m_socket->Bind();
-                m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_mecAddress), m_mecPort));
+                m_socket->Connect (m_mecAddress);
             }
             else if (InetSocketAddress::IsMatchingType (m_mecAddress) == true)
             {
@@ -229,7 +222,7 @@ namespace ns3 {
         m_size = m_packetSize;
     }
 
-    uint16_t MecUeApplication::GetEnb(){
+    uint16_t MecUeApplication::GetCellId(){
 
         LteUeNetDevice lteDevice = LteUeNetDevice (m_thisNode->GetDevice());
         uint64_t ueImsi = lteDevice.GetImsi();
@@ -252,7 +245,7 @@ namespace ns3 {
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
         m_socket->Bind();
-        m_socket->Connect (InetSocketAddress (m_mecAddress, m_mecPort));
+        m_socket->Connect (m_mecAddress);
 
         if (Simulator::Now() < m_noSenduntil){
             m_requestSent = Simulator::Now();
@@ -263,7 +256,7 @@ namespace ns3 {
                 m_requestSent = Simulator::Now();
             }
             //Create packet payloadU
-            std::string fillString = "1/" + str(GetEnb()) + "/";
+            std::string fillString = "1/" + str(GetCellId()) + "/";
             uint8_t *buffer = fillString.c_str();
             SetFill(buffer, m_packetSize, m_data_request);
 
@@ -290,7 +283,7 @@ namespace ns3 {
     {
         NS_ASSERT (m_sendPingEvent.IsExpired ());
         m_pingSent.clear();
-        for (InetSocketAddress mec: m_mecAddresses){
+        for (InetSocketAddress *mec: m_mallServers){
             if (Simulator::Now() < m_noSenduntil){
                 m_requestSent = Simulator::Now();
                 m_requestBlocked = true;
@@ -406,7 +399,7 @@ namespace ns3 {
                 switch(args[0]){
                     case "2":
                         //This request came from a MEC
-                        if (from_ipv4 == m_mecAddress && inet_from.GetPort() == m_mecPort){
+                        if (inet_from == m_mecAddress){
                             int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
                             NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "\n");
                         }
@@ -425,7 +418,7 @@ namespace ns3 {
                             sendTime = 0;
                             m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
 
-                            if(m_measurementReport.size() == m_mecAddresses.size()){
+                            if(m_measurementReport.size() == m_allServers.size()){
                                 //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
                                 Simulator::Schedule(Seconds(0), &SendMeasurementReport, m_measurementReport);
                                 m_measurementReport.clear(); //Start with an empty report for the next iteration
@@ -447,9 +440,9 @@ namespace ns3 {
 
                         //Update MEC address
                         NS_LOG_INFO("Handover," Simulator::Now()<< "," << m_thisIpAddress << "," << mecAddress << "," << newAddress << "\n");
-                        setMec(newAddress, newPort);
+                        m_mecAddress = InetSocketAddress(newAddress, newPort);
                         m_socket->Bind();
-                        m_socket->Connect (InetSocketAddress (newAddress, newPort));
+                        m_socket->Connect (m_mecAddress);
 
                         //Set no-send period
                         m_noSendUntil = Simulator::Now() + Time(args[3]);

@@ -107,8 +107,7 @@ namespace ns3 {
 
         uint32_t m_sent; //!< Counter for sent packets
         Ptr<Socket> m_socket; //!< Socket
-        Address m_mecAddress; //!< Remote peer address
-        uint16_t m_mecPort; //!< Remote peer port
+        InetSocketAddress m_mecAddress; //!< Remote peer address
         m_sendPingEvent;
         m_sendServiceEvent;
 
@@ -123,7 +122,7 @@ namespace ns3 {
         bool m_requestBlocked;
         std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
         std::map<Ipv4Address,Time> m_pingSent;
-        std::vector<InetSocketAddress> m_mecAddresses;
+        std::vector<InetSocketAddress> m_allServers;
         uint8_t *m_data_request;
         uint8_t *m_data_ping;
         uint8_t *m_data_report;

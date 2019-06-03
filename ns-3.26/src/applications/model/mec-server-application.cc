@@ -36,7 +36,6 @@ namespace ns3 {
 
     NS_OBJECT_ENSURE_REGISTERED (MecServerApplication);
 
-    InetSocketAddress m_orcAddress;
     std::vector<InetSocketAddress> m_mecAddresses;
     Event m_sendEvent;
 
@@ -48,14 +47,12 @@ namespace ns3 {
 //    Ptr<NetDevice> m_thisNetDevice = m_thisNode.GetDevice(0);
 //    Ipv4Address m_thisIpAddress = InetSocketAddress::ConvertFrom(m_thisNetDevice.GetAddress());  //Used for logging purposes
 
-    InetSocketAddress m_orcAddress;
 
     uint32_t m_expectedWaitingTime = 0;
     int m_noClients = 0;
     int m_noUes = 800; //TODO hardcoded for now, finetune later
     int m_noHandovers = 0;
     Time m_startTime;
-    Ptr<LteEnbNetDevice> m_enb;
     Time noSendUntil = Simulator::Now();
 
     TypeId
@@ -79,6 +76,14 @@ namespace ns3 {
                                UintegerValue (100),
                                MakeUintegerAccessor (&MecServerApplication::m_packetSize),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("OrcAddress", "InetSocketAddress of the orchestrator",
+                               AddressValue(InetSocketAddress(2035)),
+                               MakeAddressAccessor (&MecServerApplication::m_orcAddress),
+                               MakeAddressChecker<Address> ())
+                .AddAttribute ("cellID", "ID of the eNB this server is associated with",
+                               UintegerValue(-1),
+                               MakeUintegerAccessor (&MecServerApplication::m_cellId),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecServerApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -86,26 +91,20 @@ namespace ns3 {
         return tid;
     }
 
-    MecServerApplication::MecServerApplication (InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses, Ptr<LteEnbNetDevice> enb)
+    MecServerApplication::MecServerApplication ()
     {
         NS_LOG_FUNCTION (this);
         m_sent = 0;
         m_socket = 0;
         m_sendEvent = EventId ();
-        m_orcAddress = orc;
-        m_mecAddresses = mecAddresses;
         m_startTime = Simulator::Now();
-        m_enb = enb;
     }
 
-    MecServerApplication::~MecServerApplication(InetSocketAddress orc, std::vector<InetSocketAddress> mecAddresses, Ptr<LteEnbNetDevice> enb)
+    MecServerApplication::~MecServerApplication()
     {
         NS_LOG_FUNCTION (this);
         m_socket = 0;
 
-        m_orcAddress = 0;
-        m_mecAddresses = 0;
-        m_enb = 0;
     }
 
     void
@@ -303,10 +302,10 @@ namespace ns3 {
                 switch(args[0]){
                     case "1":
                         //service request from ue
-                        Ptr<LteEnbNetDevice> ue_enb = args[1];
+                        int ue_cellId = int(args[1]);
                         int delay = 0; //in ms
 
-                        if (m_enb.GetCellId() == ue_enb){
+                        if (m_cellId == ue_cellId){
                             delay = m_expectedWaitingTime;
                         }
                         else {

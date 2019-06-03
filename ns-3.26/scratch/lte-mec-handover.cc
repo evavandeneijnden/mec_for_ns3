@@ -41,6 +41,7 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
+
 int
 main (int argc, char *argv[])
 {
@@ -53,6 +54,7 @@ main (int argc, char *argv[])
     int numberOfMecs = 4;
     double mec_distance = 3000.0;
     double numberOfRemoteHosts = numberOfMecs +1; //One extra for the orchestrator
+    std::map<Ptr<Node>, Ptr<Node>> mecEnbMap;
 
     // Command line arguments
     CommandLine cmd;
@@ -73,7 +75,7 @@ main (int argc, char *argv[])
 
     Ptr<Node> pgw = epcHelper->GetPgwNode ();
 
-    // Create a single RemoteHost
+    // Create RemoteHosts
     NodeContainer remoteHostContainer;
     remoteHostContainer.Create (numberOfRemoteHosts);
     InternetStackHelper internet;
@@ -153,6 +155,17 @@ main (int argc, char *argv[])
     NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
     NetDeviceContainer ueLteDevs = lteHelper->InstallUeDevice (ueNodes);
 
+    // Link each MEC to an eNB
+    for (int i = 0; i<numberOfEnbs; i++){
+        //Assign a MEC to each eNB
+        mecEnbMap[remoteHostContainer.Get(i+1)] = enbNodes.Get(i);
+    }
+    for (int i = numberOfEnbs+1; i<remoteHostContainer.GetN(); i++){
+        //Assign every "extra" MEC to a random eNB
+       int index = rand()%(numberOfEnbs + 1);
+       mecEnbMap[remoteHostContainer.Get(i)] = enbNodes.Get(index);
+    }
+
     // Install the IP stack on the UEs
     internet.Install (ueNodes);
     Ipv4InterfaceContainer ueIpIface;
@@ -178,49 +191,56 @@ main (int argc, char *argv[])
 
     //UE applications: pass along argument for ORC inetsocketaddress; always first in remoteHost list?
 
-    uint16_t dlPort = 1234;
-    uint16_t ulPort = 2000;
-    uint16_t otherPort = 3000;
-    ApplicationContainer clientApps;
-    ApplicationContainer serverApps;
-    NodeContainer::Iterator k;
-    int iteration = 0;
-    for (k = remoteHostContainer.Begin (); k != remoteHostContainer.End (); ++k) {
-        Ptr<Node> rh = *k;
-        for (uint32_t u = 0; u < ueNodes.GetN(); ++u) {
-            ++ulPort;
-            ++otherPort;
-            PacketSinkHelper dlPacketSinkHelper("ns3::UdpSocketFactory",
-                                                InetSocketAddress(Ipv4Address::GetAny(), dlPort));
-            PacketSinkHelper ulPacketSinkHelper("ns3::UdpSocketFactory",
-                                                InetSocketAddress(Ipv4Address::GetAny(), ulPort));
-            PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory",
-                                              InetSocketAddress(Ipv4Address::GetAny(), otherPort));
-            serverApps.Add(dlPacketSinkHelper.Install(ueNodes.Get(u)));
-            serverApps.Add(ulPacketSinkHelper.Install(rh));
-            serverApps.Add(packetSinkHelper.Install(ueNodes.Get(u)));
 
-            UdpClientHelper dlClient(ueIpIface.GetAddress(u), dlPort);
-            dlClient.SetAttribute("Interval", TimeValue(MilliSeconds(interPacketInterval)));
-            dlClient.SetAttribute("MaxPackets", UintegerValue(1000000));
+    //Install ORC application
+    Ptr<Node> orcNode = remoteHostContainer.Get(0);
+    NodeContainer orcContainer = NodeContainer(*orcNode);
+    InetSocketAddress orcAddress = InetSocketAddress(remoteAddresses[0], 1000);
 
-            UdpClientHelper ulClient(remoteAddresses[iteration], ulPort);
-            ulClient.SetAttribute("Interval", TimeValue(MilliSeconds(interPacketInterval)));
-            ulClient.SetAttribute("MaxPackets", UintegerValue(1000000));
+    ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
+    m_factory.Set ("Protocol", "ns3::UdpSocketFactory");
+    m_factory.Set ("Local", AddressValue (orcAddress));
 
-            UdpClientHelper client(ueIpIface.GetAddress(u), otherPort);
-            client.SetAttribute("Interval", TimeValue(MilliSeconds(interPacketInterval)));
-            client.SetAttribute("MaxPackets", UintegerValue(1000000));
+    Ptr<Application> app = m_factory.Create<Application> ();
+    orcNode->AddApplication (app);
 
-            clientApps.Add(dlClient.Install(rh));
-            clientApps.Add(ulClient.Install(ueNodes.Get(u)));
-            if (u + 1 < ueNodes.GetN()) {
-                clientApps.Add(client.Install(ueNodes.Get(u + 1)));
-            } else {
-                clientApps.Add(client.Install(ueNodes.Get(0)));
-            }
-        }
-        iteration++;
+
+
+    //Install MEC applications
+    for (int i = 1; i < remoteHostContainer.GetN(); ++i){
+        Node node = remoteHostContainer.Get(i);
+        InetSocketAddress nodeAddress = InetSocketAddress(remoteAddresses[i], 1001);
+        uint16_t cellId = mecEnbMap[*node]->GetCellId();
+
+        ObjectFactory m_factory = ObjectFactory("ns3::MecServerApplication");
+        m_factory.Set ("Protocol", "ns3::UdpSocketFactory");
+        m_factory.Set ("Local", AddressValue (nodeAddress));
+        m_factory.Set ("OrcAddress", AddressValue(orcAddress));
+        m_factory.Set ("CellID", UintegerValue(cellId) );
+
+        Ptr<Application> app = m_factory.Create<Application> ();
+        node->AddApplication (app);
+    }
+
+    //Install UE applications
+    for (int i = 0; i < ueNodes.GetN(); ++i){
+        Node node = ueNodes.Get(i);
+        Node node = ueNodes.Get(i);
+        InetSocketAddress nodeAddress = InetSocketAddress(remoteAddresses[i], 1002);
+        std::vector<Ipv4Address> mecAddresses = remoteAddresses;
+        NS_LOG_DEBUG("mecaddress size: " << mecAddresses.size());
+        mecAddresses.erase(0);
+        NS_LOG_DEBUG("remoreAddresses size: " << remoteAddresses.size() << " should be same size as mecaddresses");
+
+        ObjectFactory m_factory = ObjectFactory("ns3::MecUeApplication");
+        m_factory.Set ("Protocol", "ns3::UdpSocketFactory");
+        m_factory.Set ("Local", AddressValue (nodeAddress));
+        m_factory.Set ("MecAddress", AddressValue(InetSocketAddress(remoteAddresses[i+1], 1001)));
+        m_factory.Set ("OrcAddress", AddressValue(orcAddress));
+        m_factory.Set ("AllServers", ObjectPtrContainerValue(mecAddresses));
+
+        Ptr<Application> app = m_factory.Create<Application> ();
+        node->AddApplication (app);
     }
     serverApps.Start (Seconds (0.01));
     clientApps.Start (Seconds (0.01));
