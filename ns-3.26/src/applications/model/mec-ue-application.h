@@ -24,6 +24,16 @@
 #include "ns3/ptr.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/traced-callback.h"
+#include "ns3/node.h"
+#include "ns3/application.h"
+#include "ns3/lte-enb-net-device.h"
+#include "ns3/lte-ue-net-device.h"
+#include "ns3/string.h"
+#include "ns3/pointer.h"
+#include "ns3/net-device-container.h"
+#include "ns3/inet-socket-address.h"
+#include "ns3/socket.h"
+#include "ns3/lte-enb-rrc.h"
 
 namespace ns3 {
 
@@ -50,30 +60,9 @@ namespace ns3 {
         virtual ~MecUeApplication ();
 
         /**
-         * \brief set the remote address and port
-         * \param ip remote IP address
-         * \param port remote port
+         * Add string to result, then fill the rest of the packet with '#' characters
          */
-        void SetMec (Address ip, uint16_t port);
-
-
-        /**
-         * Set the data fill of the packet (what is sent as data to the server) to
-         * the contents of the fill buffer, repeated as many times as is required.
-         *
-         * Initializing the packet to the contents of a provided single buffer is
-         * accomplished by setting the fillSize set to your desired dataSize
-         * (and providing an appropriate buffer).
-         *
-         * \warning The size of resulting echo packets will be automatically adjusted
-         * to reflect the dataSize parameter -- this means that the PacketSize
-         * attribute of the Application may be changed as a result of this call.
-         *
-         * \param fill The fill pattern to use when constructing packets.
-         * \param fillSize The number of bytes in the provided fill pattern.
-         * \param dataSize The desired size of the final echo data.
-         */
-        void SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize);
+        uint8_t* GetFilledString(std::string filler);
 
     protected:
         virtual void DoDispose (void);
@@ -95,8 +84,9 @@ namespace ns3 {
 
         void SendServiceRequest(void);
         void SendPing(void);
-        void SendMeasurementReport (std::map<Ipv4Address, uint64_t> measurementReport);
+        void SendMeasurementReport(void);
 
+        uint16_t GetCellId(void);
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send
@@ -105,31 +95,44 @@ namespace ns3 {
         uint32_t m_size; //!< Size of the sent packet
 
 
+
         uint32_t m_sent; //!< Counter for sent packets
         Ptr<Socket> m_socket; //!< Socket
-        InetSocketAddress m_mecAddress; //!< Remote peer address
-        m_sendPingEvent;
-        m_sendServiceEvent;
+        EventId m_sendPingEvent;
+        EventId m_sendServiceEvent;
+        uint8_t *m_data_request;
+        uint8_t *m_data_ping;
+        uint8_t *m_data_report;
+        Ipv4Address m_mecIp;
+        uint8_t m_mecPort;
+        Ipv4Address m_orcIp;
+        uint8_t m_orcPort;
+        Ptr<Node> m_thisNode;
+        bool m_requestBlocked;
+        Ptr<NetDevice> m_thisNetDevice;
+        Ipv4Address m_thisIpAddress;
+        std::string m_serverString;
+
+
+
 
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;
 
 
         //Added
-        InetSocketAddress m_orcAddress;
         Time m_noSendUntil;
         Time m_requestSent;
-        bool m_requestBlocked;
         std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
         std::map<Ipv4Address,Time> m_pingSent;
         std::vector<InetSocketAddress> m_allServers;
-        uint8_t *m_data_request;
-        uint8_t *m_data_ping;
-        uint8_t *m_data_report;
-        Ptr<Node> m_thisNode;
-        Ptr<NetDevice> m_thisNetDevice;
-        Ipv4Address m_thisIpAddress;
+
         uint32_t m_packetSize;
+        Ptr<LteEnbNetDevice> m_enb0;
+        Ptr<LteEnbNetDevice> m_enb1;
+        Ptr<LteEnbNetDevice> m_enb2;
+        std::vector<Ptr<LteEnbNetDevice>> m_enbDevices;
+
     };
 
 } // namespace ns3

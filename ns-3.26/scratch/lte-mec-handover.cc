@@ -94,22 +94,18 @@ main (int argc, char *argv[])
     Ipv4AddressHelper ipv4h;
     ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
     Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
-    NS_LOG_DEBUG("number of internetIpInterfaces: " << internetIpIfaces.GetN());
-    NS_LOG_DEBUG("Expected: 10");
     // interface 0 is localhost, 1 is the p2p device
 //    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
     std::vector<Ipv4Address> remoteAddresses;
     for(uint16_t i = 1; i<internetIpIfaces.GetN(); i+=2){
         remoteAddresses.push_back(internetIpIfaces.GetAddress(i));
     }
-
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
     NodeContainer::Iterator j;
     for (j = remoteHostContainer.Begin (); j != remoteHostContainer.End (); ++j) {
         Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting ((*j)->GetObject<Ipv4> ());
         remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
     }
-
     NodeContainer ueNodes;
     NodeContainer enbNodes;
     enbNodes.Create(numberOfEnbs);
@@ -152,6 +148,7 @@ main (int argc, char *argv[])
     }
 
     // Install LTE Devices to the nodes
+
     NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
     NetDeviceContainer ueLteDevs = lteHelper->InstallUeDevice (ueNodes);
 
@@ -160,10 +157,13 @@ main (int argc, char *argv[])
         //Assign a MEC to each eNB
         mecEnbMap[remoteHostContainer.Get(i+1)] = enbNodes.Get(i);
     }
-    for (int i = numberOfEnbs+1; i<remoteHostContainer.GetN(); i++){
+
+    for (int i = numberOfEnbs; i<int(remoteHostContainer.GetN()); i++){
         //Assign every "extra" MEC to a random eNB
-       int index = rand()%(numberOfEnbs + 1);
-       mecEnbMap[remoteHostContainer.Get(i)] = enbNodes.Get(index);
+       int index = rand()%(numberOfEnbs);
+       Ptr<Node> node = remoteHostContainer.Get(i);
+       Ptr<Node> value = enbNodes.Get(index);
+       mecEnbMap[node] = value;
     }
 
     // Install the IP stack on the UEs
@@ -186,64 +186,103 @@ main (int argc, char *argv[])
         // side effect: the default EPS bearer will be activated
     }
 
-
     // Install and start applications on UEs and remote hosts
 
     //UE applications: pass along argument for ORC inetsocketaddress; always first in remoteHost list?
+    ApplicationContainer mecApps;
+    ApplicationContainer orcApp;
+    ApplicationContainer ueApps;
 
 
     //Install ORC application
+    NS_LOG_DEBUG("test9");
     Ptr<Node> orcNode = remoteHostContainer.Get(0);
-    NodeContainer orcContainer = NodeContainer(*orcNode);
     InetSocketAddress orcAddress = InetSocketAddress(remoteAddresses[0], 1000);
 
+    for(int i = 0; i<int(TypeId::GetRegisteredN()); i++){
+        TypeId temp = TypeId::GetRegistered(i);
+        std::string name = temp.GetName();
+        if(name.find("Application") != std::string::npos){
+            NS_LOG_DEBUG("Registered: " + temp.GetName());
+        }
+
+    }
+
     ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
-    m_factory.Set ("Protocol", "ns3::UdpSocketFactory");
+    m_factory.Set ("Protocol", StringValue("ns3::UdpSocketFactory"));
     m_factory.Set ("Local", AddressValue (orcAddress));
 
     Ptr<Application> app = m_factory.Create<Application> ();
     orcNode->AddApplication (app);
-
+    orcApp.Add(app);
 
 
     //Install MEC applications
-    for (int i = 1; i < remoteHostContainer.GetN(); ++i){
-        Node node = remoteHostContainer.Get(i);
+    NS_LOG_DEBUG("test10");
+    std::vector<Ptr<LteEnbNetDevice>> enbDevs;
+    for (int i = 1; i < int(remoteHostContainer.GetN()); ++i){
+        Ptr<Node> node = remoteHostContainer.Get(i);
         InetSocketAddress nodeAddress = InetSocketAddress(remoteAddresses[i], 1001);
-        uint16_t cellId = mecEnbMap[*node]->GetCellId();
+        Ptr<Node> enbNode = mecEnbMap[node];
+        Ptr<NetDevice> device = enbNode->GetDevice(0);
+        Ptr<LteEnbNetDevice> netDevice = dynamic_cast<LteEnbNetDevice*>(PeekPointer (device));
+        enbDevs.push_back(netDevice);
+        uint16_t cellId = netDevice->GetCellId();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecServerApplication");
-        m_factory.Set ("Protocol", "ns3::UdpSocketFactory");
+        m_factory.Set ("Protocol", StringValue("ns3::UdpSocketFactory"));
         m_factory.Set ("Local", AddressValue (nodeAddress));
         m_factory.Set ("OrcAddress", AddressValue(orcAddress));
         m_factory.Set ("CellID", UintegerValue(cellId) );
 
         Ptr<Application> app = m_factory.Create<Application> ();
-        node->AddApplication (app);
+        node->AddApplication(app);
+        mecApps.Add(app);
     }
 
     //Install UE applications
-    for (int i = 0; i < ueNodes.GetN(); ++i){
-        Node node = ueNodes.Get(i);
-        Node node = ueNodes.Get(i);
+    NS_LOG_DEBUG("test11");
+    //Make string of all MEc IP addresses (port is always 1001)
+    std::string mecString;
+    for (int i = 1; i < int(remoteAddresses.size()); i++){
+        //Serialize address
+        Ipv4Address addr = remoteAddresses[i];
+        std::stringstream ss;
+        std::stringstream os;
+        addr.Print(os);
+        ss << os.rdbuf();
+        std::string addrString = ss.str();
+
+        //Add address to mecString (with "/" as separator)
+        mecString.append(addrString + "/");
+    }
+
+
+    for (int i = 0; i < int(ueNodes.GetN()); ++i){
+        Node node = *(ueNodes.Get(i));
         InetSocketAddress nodeAddress = InetSocketAddress(remoteAddresses[i], 1002);
-        std::vector<Ipv4Address> mecAddresses = remoteAddresses;
-        NS_LOG_DEBUG("mecaddress size: " << mecAddresses.size());
-        mecAddresses.erase(0);
-        NS_LOG_DEBUG("remoreAddresses size: " << remoteAddresses.size() << " should be same size as mecaddresses");
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecUeApplication");
-        m_factory.Set ("Protocol", "ns3::UdpSocketFactory");
+        m_factory.Set ("Protocol", StringValue("ns3::UdpSocketFactory"));
         m_factory.Set ("Local", AddressValue (nodeAddress));
-        m_factory.Set ("MecAddress", AddressValue(InetSocketAddress(remoteAddresses[i+1], 1001)));
-        m_factory.Set ("OrcAddress", AddressValue(orcAddress));
-        m_factory.Set ("AllServers", ObjectPtrContainerValue(mecAddresses));
+        m_factory.Set ("MecIp", Ipv4AddressValue(remoteAddresses[i+1]));
+        m_factory.Set("MecPort", UintegerValue(1001));
+        m_factory.Set ("OrcIp", Ipv4AddressValue(orcAddress.GetIpv4()));
+        m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
+        m_factory.Set ("AllServers", StringValue(mecString));
+        m_factory.Set ("Enb0", PointerValue(enbDevs[0]));
+        m_factory.Set ("Enb1", PointerValue(enbDevs[1]));
+        m_factory.Set ("Enb2", PointerValue(enbDevs[2]));
 
         Ptr<Application> app = m_factory.Create<Application> ();
-        node->AddApplication (app);
+        node.AddApplication (app);
+        ueApps.Add(ueApps);
     }
-    serverApps.Start (Seconds (0.01));
-    clientApps.Start (Seconds (0.01));
+
+    NS_LOG_DEBUG("test12");
+    orcApp.Start(Seconds(0.01));
+    mecApps.Start (Seconds (0.01));
+    ueApps.Start (Seconds (0.01));
     lteHelper->EnableTraces ();
     // Uncomment to enable PCAP tracing
     //p2ph.EnablePcapAll("lena-epc-first");

@@ -16,8 +16,8 @@
 // * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 // */
 //
-//#ifndef MEC_ORC_APPLICATION_H
-//#define MEC_ORC_APPLICATION_H
+//#ifndef MEC_SERVER_APPLICATION_H
+//#define MEC_SERVER_APPLICATION_H
 //
 //#include "ns3/application.h"
 //#include "ns3/event-id.h"
@@ -37,7 +37,7 @@
 // *
 // * Every packet sent should be returned by the server and received here.
 // */
-//    class MecOrcApplication : public Application
+//    class MecHoServerApplication : public Application
 //    {
 //    public:
 //        /**
@@ -46,9 +46,10 @@
 //         */
 //        static TypeId GetTypeId (void);
 //
-//        MecOrcApplication ();
+//        MecHoServerApplication ();
 //
-//        virtual ~MecOrcApplication ();
+//        virtual ~MecHoServerApplication ();
+//
 //
 //        /**
 //         * Set the data fill of the packet (what is sent as data to the server) to
@@ -66,7 +67,7 @@
 //         * \param fillSize The number of bytes in the provided fill pattern.
 //         * \param dataSize The desired size of the final echo data.
 //         */
-//        void SetFill (uint8_t *fill, uint32_t fillSize, uint8_t *dest);
+//        void SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize);
 //
 //    protected:
 //        virtual void DoDispose (void);
@@ -76,41 +77,36 @@
 //        virtual void StartApplication (void);
 //        virtual void StopApplication (void);
 //
-//        /**
-//         * \brief Handle a packet reception.
-//         *
-//         * This function is called by lower layers.
-//         *
-//         * \param socket the socket the packet was received to.
-//         */
 //        void HandleRead (Ptr<Socket> socket);
 //
-//
-//        void SendMecHandover(void);
-//        void SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
+//        void SendWaitingTimeUpdate(void);
+//        void SendUeTransfer(void);
+//        void SendRequestEcho(void);
 //
 //
 //        uint32_t m_count; //!< Maximum number of packets the application will send
+//        Time m_updateInterval; //!< Packet inter-send time
 //        uint32_t m_size; //!< Size of the sent packet
-//
 //
 //        uint32_t m_sent; //!< Counter for sent packets
 //        Ptr<Socket> m_socket; //!< Socket
-//        EventId m_sendUeEvent;
-//        EventId m_sendMecEvent;
+//        EventId m_sendEvent; //!< Event to send the next packet
 //
 //        /// Callbacks for tracing the packet Tx events
 //        TracedCallback<Ptr<const Packet> > m_txTrace;
 //
 //
 //        //Added
+//        InetSocketAddress m_orcAddress;
 //        std::vector<InetSocketAddress> m_mecAddresses;
-//        uint8_t *m_data_ue;
-//        uint8_t *m_data_mec;
+//        uint8_t *m_data_update;
+////        Ptr<Node> m_thisNode;
+////        Ptr<NetDevice> m_thisNetDevice;
+////        Ipv4Address m_thisIpAddress;
 //        uint32_t m_packetSize;
-//        std::string m_serverString;
+//        uint32_t m_cellId;
 //    };
 //
 //} // namespace ns3
 //
-//#endif /* MEC_ORC_APPLICATION_H */
+//#endif /* MEC_SERVER_APPLICATION_H */
