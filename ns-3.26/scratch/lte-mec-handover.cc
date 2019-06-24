@@ -232,7 +232,8 @@ main (int argc, char *argv[])
         ObjectFactory m_factory = ObjectFactory("ns3::MecServerApplication");
         m_factory.Set ("Protocol", StringValue("ns3::UdpSocketFactory"));
         m_factory.Set ("Local", AddressValue (nodeAddress));
-        m_factory.Set ("OrcAddress", AddressValue(orcAddress));
+        m_factory.Set ("OrcAddress", AddressValue(orcAddress.GetIpv4()));
+        m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         m_factory.Set ("CellID", UintegerValue(cellId) );
 
         Ptr<Application> app = m_factory.Create<Application> ();
