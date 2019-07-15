@@ -23,7 +23,7 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
 
-//NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
+NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
 
 
@@ -36,16 +36,16 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
                 .AddConstructor<MecHoServerApplication> ()
                 .AddAttribute ("MaxPackets",
                                "The maximum number of packets the application will send",
-                               UintegerValue (100),
+                               UintegerValue (),
                                MakeUintegerAccessor (&MecHoServerApplication::m_count),
                                MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("UpdateInterval",
                                "The time to wait between serviceRequest packets",
-                               TimeValue (Seconds (1.0)),
-                               MakeTimeAccessor (&MecHoServerApplication::m_updateInterval),
-                               MakeTimeChecker ())
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecHoServerApplication::m_updateInterval),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("PacketSize", "Size of echo data in outbound packets",
-                               UintegerValue (100),
+                               UintegerValue (),
                                MakeUintegerAccessor (&MecHoServerApplication::m_packetSize),
                                MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("OrcAddress", "InetSocketAddress of the orchestrator",
@@ -53,11 +53,11 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
                                MakeIpv4AddressAccessor (&MecHoServerApplication::m_orcAddress),
                                MakeIpv4AddressChecker())
                    .AddAttribute ("OrcPort", "Port number",
-                               UintegerValue(-1),
+                               UintegerValue(),
                                MakeUintegerAccessor (&MecHoServerApplication::m_orcPort),
                                MakeUintegerChecker<uint32_t> ())
-                .AddAttribute ("cellID", "ID of the eNB this server is associated with",
-                               UintegerValue(-1),
+                .AddAttribute ("CellID", "ID of the eNB this server is associated with",
+                               UintegerValue(),
                                MakeUintegerAccessor (&MecHoServerApplication::m_cellId),
                                MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
@@ -72,7 +72,9 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
         NS_LOG_FUNCTION (this);
         m_sent = 0;
         m_socket = 0;
-        m_sendEvent = EventId ();
+        m_sendEvent = EventId ();\
+        m_transferEvent = EventId();
+        m_echoEvent = EventId();
         m_startTime = Simulator::Now();
 
         m_noClients = 0;
@@ -155,6 +157,7 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
 
     void
     MecHoServerApplication::SendWaitingTimeUpdate (void) {
+//        NS_LOG_FUNCTION(this << m_updateInterval);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
@@ -185,12 +188,15 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
             ++m_sent;
 
             if (m_sent < m_count) {
-                m_sendEvent = Simulator::Schedule(m_updateInterval, &MecHoServerApplication::SendWaitingTimeUpdate, this);
+                m_sendEvent = Simulator::Schedule(Seconds(m_updateInterval/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
             }
         }
-        else {
-            SendWaitingTimeUpdate();
+
+         else {
+            m_sendEvent = Simulator::Schedule(Seconds(m_updateInterval/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
+//            SendWaitingTimeUpdate();
         }
+
 
     }
 
@@ -214,7 +220,7 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
             ++m_sent;
         }
         else {
-            SendUeTransfer();
+            m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this);
         }
 
     }
@@ -230,7 +236,7 @@ NS_LOG_COMPONENT_DEFINE ("MecHoServerApplication");
             ++m_sent;
         }
         else {
-            SendEcho();
+            m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this);
         }
     }
 

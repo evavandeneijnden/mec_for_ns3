@@ -24,7 +24,7 @@ namespace ns3 {
 
     NS_LOG_COMPONENT_DEFINE ("MecOrcApplication");
 
-////    NS_OBJECT_ENSURE_REGISTERED (MecOrcApplication);
+    NS_OBJECT_ENSURE_REGISTERED (MecOrcApplication);
 
     TypeId
     MecOrcApplication::GetTypeId (void)

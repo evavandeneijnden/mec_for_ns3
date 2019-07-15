@@ -30,8 +30,8 @@ namespace ns3 {
 
     NS_LOG_COMPONENT_DEFINE ("MecUeApplication");
 
-//    NS_OBJECT_ENSURE_REGISTERED (MecUeApplication);
-//
+    NS_OBJECT_ENSURE_REGISTERED (MecUeApplication);
+
     TypeId
     MecUeApplication::GetTypeId (void)
     {
@@ -46,7 +46,7 @@ namespace ns3 {
                                MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("PacketSize",
                                "The size of payload of a packet",
-                               UintegerValue (100),
+                               UintegerValue (),
                                MakeUintegerAccessor (&MecUeApplication::m_size),
                                MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("ServiceInterval",
@@ -66,7 +66,7 @@ namespace ns3 {
                                MakeIpv4AddressChecker ())
                .AddAttribute ("MecPort",
                                "Port of the server ti which this UE is connected",
-                               UintegerValue (),
+                               UintegerValue (100),
                                MakeUintegerAccessor (&MecUeApplication::m_mecPort),
                                MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("OrcIp",
@@ -84,10 +84,6 @@ namespace ns3 {
                                Ipv4AddressValue (),
                                MakeIpv4AddressAccessor (&MecUeApplication::m_thisIpAddress),
                                MakeIpv4AddressChecker ())
-                .AddAttribute ("PacketSize", "Size of echo data in outbound packets",
-                               UintegerValue (100),
-                               MakeUintegerAccessor (&MecUeApplication::m_packetSize),
-                               MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("AllServers", "Container of all server addresses",
                                StringValue("x"),
                                MakeStringAccessor (&MecUeApplication::m_serverString),
@@ -104,6 +100,10 @@ namespace ns3 {
                                PointerValue(),
                                MakePointerAccessor (&MecUeApplication::m_enb2),
                                MakePointerChecker<LteEnbNetDevice> ())
+                .AddAttribute ("Node", "Node on which this application will run",
+                               PointerValue(),
+                               MakePointerAccessor (&MecUeApplication::m_thisNode),
+                               MakePointerChecker<Node> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecUeApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -121,9 +121,8 @@ namespace ns3 {
         m_data_request = 0;
         m_data_ping = 0;
         m_data_report = 0;
-        m_thisNode = GetNode();
         m_requestBlocked = false;
-        m_thisNetDevice = m_thisNode->GetDevice(0);
+//        m_thisNetDevice = m_thisNode->GetDevice(0);
 
         std::vector<std::string> args;
         std::string tempString;
@@ -146,9 +145,6 @@ namespace ns3 {
             ipv4.Set(cstr);
             m_allServers.push_back(ipv4);
         }
-        m_enbDevices.push_back(m_enb0);
-        m_enbDevices.push_back(m_enb1);
-        m_enbDevices.push_back(m_enb2);
     }
 
     MecUeApplication::~MecUeApplication()
@@ -176,8 +172,9 @@ namespace ns3 {
     MecUeApplication::StartApplication (void)
     {
         NS_LOG_FUNCTION (this);
-        InetSocketAddress m_mecAddress = InetSocketAddress(m_mecIp, m_mecPort);
 
+
+        InetSocketAddress m_mecAddress = InetSocketAddress(m_mecIp, m_mecPort);
         if (m_socket == 0)
         {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
@@ -197,12 +194,14 @@ namespace ns3 {
                 NS_ASSERT_MSG (false, "Incompatible address type: " << m_mecAddress);
             }
         }
-
         m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
         m_socket->SetAllowBroadcast (true);
-        SendServiceRequest ();
-        SendPing ();
+//        SendServiceRequest ();
+        m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendServiceRequest, this);
+//        SendPing ();
+        Simulator::Schedule(Seconds(2), &MecUeApplication::SendPing, this);
     }
+
 
     void
     MecUeApplication::StopApplication ()
@@ -226,59 +225,89 @@ namespace ns3 {
         NS_LOG_FUNCTION(this << filler);
 
         std::string result;
-        uint8_t *val = (uint8_t *) malloc(m_packetSize + 1);
+        uint8_t *val = (uint8_t *) malloc(m_size + 1);
 
         int fillSize = filler.size();
 
-        if (fillSize >= int(m_packetSize)) {
+        if (fillSize >= int(m_size)) {
             NS_LOG_ERROR("Filler for packet larger than packet size");
             StopApplication();
         } else {
             result.append(filler);
-            for (int i = result.size(); i < int(m_packetSize); i++) {
+            for (int i = result.size(); i < int(m_size); i++) {
                 result.append("#");
             }
 
-            std::memset(val, 0, m_packetSize + 1);
-            std::memcpy(val, result.c_str(), m_packetSize + 1);
+            std::memset(val, 0, m_size + 1);
+            std::memcpy(val, result.c_str(), m_size + 1);
         }
         return val;
     }
 
 
-    uint16_t MecUeApplication::GetCellId(){
-        uint16_t result = -1;
+    uint16_t MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
+        NS_LOG_FUNCTION(this);
+        uint16_t result = 0;
 
-        LteUeNetDevice * pLteDevice;
         Ptr<NetDevice> thisDevice = (m_thisNode->GetDevice(0));
-        pLteDevice = (LteUeNetDevice*) &thisDevice;
-        uint64_t ueImsi = pLteDevice->GetImsi();
+        Ptr<LteUeNetDevice> lteDevice = (LteUeNetDevice*) &thisDevice;
+        uint64_t ueImsi = lteDevice->GetImsi();
+        NS_LOG_DEBUG("1");
 
-        //TODO fix unreachable code!
-        bool found = false;
-        for(Ptr<LteEnbNetDevice> enb: m_enbDevices){
-            if (!found) {
-                Ptr<LteEnbRrc> rrc = enb->GetRrc();
-                std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
-                for(std::map<uint16_t, Ptr<UeManager>>::iterator it = ueMap.begin(); (it != ueMap.end() && !found); ++it){
-                    Ptr<UeManager> manager = it->second;
-                    uint64_t imsi = manager->GetImsi();
-                    if(ueImsi == imsi){
-                        result = enb->GetCellId();
-                        found = true;
-                    }
-                }
-            }
-            else{
+        Ptr<LteEnbRrc> rrc = enb->GetRrc();
+        std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
+        std::map<uint16_t, Ptr<UeManager>>::iterator it;
+        NS_LOG_DEBUG("2");
+        for(it = ueMap.begin(); it != ueMap.end(); ++it){
+            NS_LOG_DEBUG("For");
+            Ptr<UeManager> manager = it->second;
+            NS_LOG_DEBUG("For2");
+            uint64_t imsi = manager->GetImsi();
+            NS_LOG_DEBUG("For3");
+            if(ueImsi == imsi){
+                result = enb->GetCellId();
+                NS_LOG_DEBUG("Result found & updated");
                 break;
+            }
+        }
+//        NS_LOG_DEBUG("Result: " << result);
+        return result;
+    }
+
+    uint16_t MecUeApplication::GetCellId(){
+        NS_LOG_FUNCTION(this);
+
+        uint16_t result;
+        uint16_t enb0_result = CheckEnb(m_enb0);
+//        NS_LOG_DEBUG("Test");
+
+        if(int(enb0_result) != -1){
+            result = enb0_result;
+        }
+        else {
+            uint16_t enb1_result = CheckEnb(m_enb1);
+            if(int(enb1_result) != -1){
+                result = enb1_result;
+            }
+            else {
+                uint16_t enb2_result = CheckEnb(m_enb2);
+                if(int(enb2_result) != -1){
+                    result = enb2_result;
+                }
+                else{
+                    NS_LOG_ERROR("No CellID found");
+                    StopApplication();
+                }
             }
 
         }
         return result;
+
     }
 
     void
     MecUeApplication::SendServiceRequest (void) {
+        NS_LOG_FUNCTION(this);
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
         m_socket->Bind();
@@ -287,6 +316,7 @@ namespace ns3 {
         if (Simulator::Now() < m_noSendUntil){
             m_requestSent = Simulator::Now();
             m_requestBlocked = true;
+
         }
         else {
             if (!m_requestBlocked){
@@ -296,8 +326,9 @@ namespace ns3 {
             std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
             uint8_t *buffer = GetFilledString(fillString);
 
+
             //Create packet
-            Ptr<Packet> p = Create<Packet> (buffer, m_packetSize);
+            Ptr<Packet> p = Create<Packet> (buffer, m_size);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace (p);
@@ -305,12 +336,14 @@ namespace ns3 {
 
             ++m_sent;
 
+
             if (m_sent < m_count)
             {
                 m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
             }
 
             m_requestBlocked = false;
+
         }
     }
 
@@ -336,7 +369,7 @@ namespace ns3 {
                 uint8_t *buffer = GetFilledString(fillString);
 
                 //Create packet
-                Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
+                Ptr <Packet> p = Create<Packet>(buffer, m_size);
                 // call to the trace sinks before the packet is actually sent,
                 // so that tags added to the packet can be sent as well
                 m_txTrace(p);
@@ -345,7 +378,7 @@ namespace ns3 {
                 ++m_sent;
 
                 if (m_sent < m_count) {
-                    m_sendServiceEvent = Simulator::Schedule(m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+                    m_sendServiceEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendServiceRequest, this);
                 }
 
                 m_requestBlocked = false;
@@ -385,7 +418,7 @@ namespace ns3 {
         uint8_t *buffer = GetFilledString(payload);
 
         //Create packet
-        Ptr<Packet> p = Create<Packet> (buffer, m_packetSize);
+        Ptr<Packet> p = Create<Packet> (buffer, m_size);
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);

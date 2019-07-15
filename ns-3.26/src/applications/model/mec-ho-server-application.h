@@ -71,12 +71,14 @@ namespace ns3 {
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send
-        Time m_updateInterval; //!< Packet inter-send time
+        uint32_t m_updateInterval; //!< Packet inter-send time in ms
 //        uint32_t m_size; //!< Size of the sent packet
 
         uint32_t m_sent; //!< Counter for sent packets
         Ptr<Socket> m_socket; //!< Socket
         EventId m_sendEvent; //!< Event to send the next packet
+        EventId m_transferEvent;
+        EventId m_echoEvent;
 
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;

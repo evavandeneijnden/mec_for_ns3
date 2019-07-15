@@ -34,6 +34,8 @@
 #include "ns3/inet-socket-address.h"
 #include "ns3/socket.h"
 #include "ns3/lte-enb-rrc.h"
+#include <thread>
+#include <chrono>
 
 namespace ns3 {
 
@@ -87,6 +89,7 @@ namespace ns3 {
         void SendMeasurementReport(void);
 
         uint16_t GetCellId(void);
+        uint16_t CheckEnb(Ptr<LteEnbNetDevice> enb);
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send
@@ -127,7 +130,6 @@ namespace ns3 {
         std::map<Ipv4Address,Time> m_pingSent;
         std::vector<InetSocketAddress> m_allServers;
 
-        uint32_t m_packetSize;
         Ptr<LteEnbNetDevice> m_enb0;
         Ptr<LteEnbNetDevice> m_enb1;
         Ptr<LteEnbNetDevice> m_enb2;
