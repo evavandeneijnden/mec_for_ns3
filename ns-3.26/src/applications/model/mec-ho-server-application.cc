@@ -77,7 +77,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         m_echoEvent = EventId();
         m_startTime = Simulator::Now();
 
-        m_noClients = 0;
         m_noUes = 800; //TODO hardcoded for now, finetune later
         m_noHandovers = 0;
         noSendUntil = Simulator::Now();
@@ -105,11 +104,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         if (m_socket == 0)
         {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            NS_LOG_DEBUG("GetNode: " << GetNode());
             m_socket = Socket::CreateSocket (GetNode (), tid);
             m_socket->Bind ();
-            m_socket->Connect (InetSocketAddress(m_orcAddress, m_orcPort));
+            int connect_code = m_socket->Connect (InetSocketAddress(m_orcAddress, m_orcPort));
+            NS_LOG_DEBUG("Server connecting to " << m_orcAddress << " on startup with code " << connect_code);
         }
-
+        NS_LOG_DEBUG("Server socket: " << m_socket);
         m_socket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
         m_socket->SetAllowBroadcast (true);
         SendWaitingTimeUpdate();
@@ -157,27 +158,32 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
     void
     MecHoServerApplication::SendWaitingTimeUpdate (void) {
-//        NS_LOG_FUNCTION(this << m_updateInterval);
+        NS_LOG_FUNCTION(this << m_updateInterval);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
             //Bind to correct destination (ORC)
-            m_socket->Bind();
-            m_socket->Connect(InetSocketAddress(m_orcAddress, m_orcPort));
+//            m_socket->Bind();
+            int connect_code = m_socket->Connect(InetSocketAddress(m_orcAddress, m_orcPort));
+            NS_LOG_DEBUG("Server connecting to " << m_orcAddress << "on SendWaitingTimeUpdate with code " << connect_code);
 
             //Calculate waiting time (in ms)
-            double serviceRho = (m_noClients * MSG_FREQ) / MEC_RATE;
+            NS_LOG_DEBUG("myClients.size(): " << myClients.size());
+            double serviceRho = (myClients.size() * MSG_FREQ) / MEC_RATE;
             double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * (1 / MEC_RATE);
-            int pingRho = (m_noUes * MEAS_FREQ) / MEC_RATE;
+            double pingRho = (m_noUes * MEAS_FREQ) / MEC_RATE;
             double expectedPingWaitingTime = (pingRho / (1 - pingRho)) * (1 / MEC_RATE);
             double handoverFrequency = m_noHandovers / ((Simulator::Now() - m_startTime).GetSeconds());
-            int handoverRho = handoverFrequency / MEC_RATE;
+            double handoverRho = handoverFrequency / MEC_RATE;
             double expectedHandoverWaitingTime = (handoverRho / (1 - handoverRho)) * (1 / MEC_RATE);
-            m_expectedWaitingTime = int(
-                    (expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime) * 1000);
+            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceWaitingTime:" << expectedServiceWaitingTime << ", pingRho: "
+                          << pingRho << ", expectedPingWaitingTime: " << expectedPingWaitingTime << ",handoverFrequency: " << handoverFrequency
+                          << ", handoverRho: " << handoverRho << ", expectedHandoverWaitingTime: " << expectedHandoverWaitingTime);
+            m_expectedWaitingTime = int((expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime) * 1000);
 
             //Create packet payload
             std::string fillString = "5/" + std::to_string(m_expectedWaitingTime) + "/";
+//            NS_LOG_DEBUG("Expected waiting time: " << m_expectedWaitingTime);
             uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
             //Send packet
@@ -204,8 +210,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     MecHoServerApplication::SendUeTransfer (void)
     {
         if (Simulator::Now() > noSendUntil){
-            m_socket->Bind();
-            m_socket->Connect(InetSocketAddress(m_newAddress, m_newPort));
+//            m_socket->Bind();
+            int connect_code = m_socket->Connect(InetSocketAddress(m_newAddress, m_newPort));
+            NS_LOG_DEBUG("Server connecting to " << m_newAddress << " on UE transfer with code " << connect_code);
 
             //Create packet payload
             uint8_t *buffer = GetFilledString("", UE_SIZE);
@@ -280,6 +287,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         int delay = 0; //in ms
 
                         if (int(m_cellId) == ue_cellId){
+                            if (myClients.find(inet_from) == myClients.end()){
+                                myClients.insert(inet_from);
+                            }
                             delay = m_expectedWaitingTime;
                         }
                         else {
@@ -287,8 +297,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                             delay = m_expectedWaitingTime + 15;
                         }
                         //Bind to correct socket
-                        m_socket->Bind();
-                        m_socket->Connect(inet_from);
+//                        m_socket->Bind();
+                        int connect_code = m_socket->Connect(inet_from);
+                        NS_LOG_DEBUG("Server connecting to " << inet_from.GetIpv4() << "on receive service request with code " << connect_code);
 
                         //Echo packet back to sender with appropriate delay
                         Simulator::Schedule(Seconds(delay / 1000), &MecHoServerApplication::SendEcho, this);
@@ -308,7 +319,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         m_newAddress = newAddress;
                         m_newPort = newPort;
+                        InetSocketAddress newInet = InetSocketAddress(m_newAddress, m_newPort);
 
+                        //TODO remove UE from client list --> check that this works as expected!
+                        NS_LOG_DEBUG("before erase: " << myClients.size());
+                        myClients.erase(newInet);
+                        NS_LOG_DEBUG("after erase: " << myClients.size());
                         //Initiate handover
                         Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this);
                         break;

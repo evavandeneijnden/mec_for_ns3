@@ -23,6 +23,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/trace-source-accessor.h"
 #include "mec-ue-application.h"
+#include "ns3/udp-socket-factory.h"
 #include <sstream>
 #include <fstream>
 
@@ -177,7 +178,8 @@ namespace ns3 {
         InetSocketAddress m_mecAddress = InetSocketAddress(m_mecIp, m_mecPort);
         if (m_socket == 0)
         {
-            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+//            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            TypeId tid = UdpSocketFactory::GetTypeId();
             m_socket = Socket::CreateSocket (GetNode (), tid);
             if (Ipv4Address::IsMatchingType(m_mecAddress) == true)
             {
@@ -194,6 +196,7 @@ namespace ns3 {
                 NS_ASSERT_MSG (false, "Incompatible address type: " << m_mecAddress);
             }
         }
+        NS_LOG_DEBUG("UE socket: " << m_socket);
         m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
         m_socket->SetAllowBroadcast (true);
 //        SendServiceRequest ();
@@ -252,8 +255,6 @@ namespace ns3 {
         Ptr<NetDevice> thisDevice = (m_thisNode->GetDevice(0));
         Ptr<LteUeNetDevice> lteDevice = (LteUeNetDevice*) &thisDevice;
         uint64_t ueImsi = lteDevice->GetImsi();
-        NS_LOG_DEBUG("1");
-
         Ptr<LteEnbRrc> rrc = enb->GetRrc();
         std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
         std::map<uint16_t, Ptr<UeManager>>::iterator it;

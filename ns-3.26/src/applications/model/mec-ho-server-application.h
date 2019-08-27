@@ -95,7 +95,7 @@ namespace ns3 {
 
          static const int MSG_FREQ = 10;
          static const int MEAS_FREQ = 10;
-         static const int MEC_RATE = 500;
+         static const int MEC_RATE = 10000;
          static const int UE_SIZE = 200;
 
         uint32_t m_expectedWaitingTime = 0;
@@ -104,6 +104,7 @@ namespace ns3 {
         int m_noHandovers ;
         Time m_startTime;
         Time noSendUntil;
+        std::set<InetSocketAddress> myClients;
     };
 
 } // namespace ns3

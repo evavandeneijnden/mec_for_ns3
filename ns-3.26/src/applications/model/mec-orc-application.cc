@@ -85,7 +85,7 @@ namespace ns3 {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             m_socket = Socket::CreateSocket (GetNode (), tid);
         }
-
+        NS_LOG_DEBUG("Orchestrator socket: " << m_socket);
         m_socket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
         m_socket->SetAllowBroadcast (true);
     }
