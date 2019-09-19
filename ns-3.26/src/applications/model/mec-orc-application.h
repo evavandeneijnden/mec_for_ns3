@@ -97,6 +97,17 @@ namespace ns3 {
         int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
         std::map<InetSocketAddress, int> waitingTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
 
+        //TODO make maps for UE and server sockets
+
+        std::string m_serverString;
+        std::string m_ueString;
+        uint32_t m_uePort;
+        std::vector<InetSocketAddress> m_allServers;
+        std::vector<InetSocketAddress> m_allUes;
+
+        std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
+        std::map<InetSocketAddress, Ptr<Socket>> ueSocketMap;
+
     };
 
 } // namespace ns3

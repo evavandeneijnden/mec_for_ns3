@@ -223,12 +223,14 @@ main (int argc, char *argv[])
         NS_LOG_DEBUG("Node (ENB) " << (*l)->GetId() << ", address: " << address);
 
     }
+    std::vector<Ipv4Address> ueAddresses;
     NodeContainer::Iterator m;
     for (m = ueNodes.Begin (); m != ueNodes.End (); ++m) {
 //        NS_LOG_DEBUG("Number of devices: " << (*m)->GetNDevices());
         Ptr<Ipv4> ipv4 = (*m)->GetObject<Ipv4>();
         Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
         Ipv4Address address = iaddr.GetLocal();
+        ueAddresses.push_back(address);
         NS_LOG_DEBUG("Node (UE) " << (*m)->GetId() << ", address: " << address);
     }
 
@@ -240,26 +242,37 @@ main (int argc, char *argv[])
     ApplicationContainer ueApps;
 
 
-    //Install ORC application
-    Ptr<Node> orcNode = remoteHostContainer.Get(0);
-    InetSocketAddress orcAddress = InetSocketAddress(remoteAddresses[0], 1000);
+    //Install MEC applications
+    //Make string of all MEC IP addresses (port is always 1001)
+    std::string mecString;
+    for (int i = 1; i < int(remoteAddresses.size()); i++){
+        //Serialize address
+        Ipv4Address addr = remoteAddresses[i];
+        std::stringstream ss;
+        std::stringstream os;
+        addr.Print(os);
+        ss << os.rdbuf();
+        std::string addrString = ss.str();
 
-    for(int i = 0; i<int(TypeId::GetRegisteredN()); i++){
-        TypeId temp = TypeId::GetRegistered(i);
-        std::string name = temp.GetName();
+        //Add address to mecString (with "/" as separator)
+        mecString.append(addrString + "/");
     }
 
-    ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
-    m_factory.Set ("MaxPackets", UintegerValue(10000));
-    m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
+    //TODO Make string of all UE IP addresses (port is always 1002)
+    std::string ueString;
+    for (int i = 1; i < int(ueAddresses.size()); i++){
+        //Serialize address
+        Ipv4Address addr = ueAddresses[i];
+        std::stringstream ss;
+        std::stringstream os;
+        addr.Print(os);
+        ss << os.rdbuf();
+        std::string ueAddrString = ss.str();
 
-    Ptr<Application> app = m_factory.Create<Application> ();
-    orcNode->AddApplication (app);
-    orcApp.Add(app);
-    NS_LOG_DEBUG("Application (type ORC): " << app << " on node " << orcNode->GetId());
+        //Add address to mecString (with "/" as separator)
+        ueString.append(ueAddrString + "/");
+    }
 
-
-    //Install MEC applications
 //    std::vector<Ptr<LteEnbNetDevice>> enbDevs;
 //    NS_LOG_DEBUG("N: " << remoteHostContainer.GetN());
     for (int i = 1; i < int(remoteHostContainer.GetN()); ++i){
@@ -279,6 +292,7 @@ main (int argc, char *argv[])
         m_factory.Set ("OrcAddress", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         m_factory.Set ("CellID", UintegerValue(cellId) );
+        m_factory.Set ("AllServers", StringValue(mecString));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
@@ -286,21 +300,30 @@ main (int argc, char *argv[])
         NS_LOG_DEBUG("Application (type MEC): " << app << " on node " << node->GetId());
     }
 
-    //Install UE applications
-    //Make string of all MEc IP addresses (port is always 1001)
-    std::string mecString;
-    for (int i = 1; i < int(remoteAddresses.size()); i++){
-        //Serialize address
-        Ipv4Address addr = remoteAddresses[i];
-        std::stringstream ss;
-        std::stringstream os;
-        addr.Print(os);
-        ss << os.rdbuf();
-        std::string addrString = ss.str();
 
-        //Add address to mecString (with "/" as separator)
-        mecString.append(addrString + "/");
+    //Install ORC application
+    Ptr<Node> orcNode = remoteHostContainer.Get(0);
+    InetSocketAddress orcAddress = InetSocketAddress(remoteAddresses[0], 1000);
+
+    for(int i = 0; i<int(TypeId::GetRegisteredN()); i++){
+        TypeId temp = TypeId::GetRegistered(i);
+        std::string name = temp.GetName();
     }
+
+    ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
+    m_factory.Set ("MaxPackets", UintegerValue(10000));
+    m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
+    m_factory.Set ("AllServers", StringValue(mecString));
+    m_factory.Set ("AllUes", StringValue(ueString));
+    m_factory.set ("UePort", UintegerValue(1002));
+
+    Ptr<Application> app = m_factory.Create<Application> ();
+    orcNode->AddApplication (app);
+    orcApp.Add(app);
+    NS_LOG_DEBUG("Application (type ORC): " << app << " on node " << orcNode->GetId());
+
+    //Install UE applications
+
 
 
     for (int i = 0; i < int(ueNodes.GetN()); ++i){

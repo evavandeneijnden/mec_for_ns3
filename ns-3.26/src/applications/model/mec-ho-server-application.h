@@ -75,7 +75,11 @@ namespace ns3 {
 //        uint32_t m_size; //!< Size of the sent packet
 
         uint32_t m_sent; //!< Counter for sent packets
-        Ptr<Socket> m_socket; //!< Socket
+
+        Ptr<Socket> m_orcSocket; //!< Socket
+        std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
+        std::map<InetSocketAddress, Ptr<Socket>> clientSocketMap;
+
         EventId m_sendEvent; //!< Event to send the next packet
         EventId m_transferEvent;
         EventId m_echoEvent;
@@ -104,7 +108,10 @@ namespace ns3 {
         int m_noHandovers ;
         Time m_startTime;
         Time noSendUntil;
-        std::set<InetSocketAddress> myClients;
+        std::string m_serverString;
+        std::vector<InetSocketAddress> m_allServers;
+        Ptr<Socket> m_echoSocket;
+//        std::set<InetSocketAddress> myClients;
     };
 
 } // namespace ns3

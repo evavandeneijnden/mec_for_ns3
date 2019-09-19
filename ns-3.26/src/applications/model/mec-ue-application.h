@@ -100,7 +100,7 @@ namespace ns3 {
 
 
         uint32_t m_sent; //!< Counter for sent packets
-        Ptr<Socket> m_socket; //!< Socket
+        Ptr<Socket> m_orcSocket; //!< Socket
         EventId m_sendPingEvent;
         EventId m_sendServiceEvent;
         uint8_t *m_data_request;
@@ -129,6 +129,8 @@ namespace ns3 {
         std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
         std::map<Ipv4Address,Time> m_pingSent;
         std::vector<InetSocketAddress> m_allServers;
+        std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
+        Ptr<Socket> currentMecSocket;
 
         Ptr<LteEnbNetDevice> m_enb0;
         Ptr<LteEnbNetDevice> m_enb1;

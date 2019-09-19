@@ -60,6 +60,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                                UintegerValue(),
                                MakeUintegerAccessor (&MecHoServerApplication::m_cellId),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("AllServers", "Container of all server addresses",
+                               StringValue("x"),
+                               MakeStringAccessor (&MecHoServerApplication::m_serverString),
+                               MakeStringChecker())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecHoServerApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -71,7 +75,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
         m_sent = 0;
-        m_socket = 0;
+        m_orcSocket = 0;
+        serverSocketMap = 0;
+        clientSocketMap = 0;
         m_sendEvent = EventId ();\
         m_transferEvent = EventId();
         m_echoEvent = EventId();
@@ -80,12 +86,36 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         m_noUes = 800; //TODO hardcoded for now, finetune later
         m_noHandovers = 0;
         noSendUntil = Simulator::Now();
+
+        std::vector<std::string> args;
+        std::string tempString;
+        for (int i = 0 ; i < int(m_serverString.length()); i++){
+            char c = m_serverString[i];
+            if(c == '/'){
+                args.push_back(tempString);
+                tempString = "";
+            }
+            else{
+                tempString.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args.size()) ; i++){
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allServers.push_back(InetSocketAddress(ipv4, 1001));
+        }
     }
 
     MecHoServerApplication::~MecHoServerApplication()
     {
         NS_LOG_FUNCTION (this);
-        m_socket = 0;
+        m_orcSocket = 0;
+        serverSocketMap = 0;
+        clientSocketMap = 0;
 
     }
 
@@ -101,19 +131,31 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
-        if (m_socket == 0)
+        //Make ORC socket
+        if (m_orcSocket == 0)
         {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            NS_LOG_DEBUG("GetNode: " << GetNode());
-            m_socket = Socket::CreateSocket (GetNode (), tid);
-            m_socket->Bind ();
-            int connect_code = m_socket->Connect (InetSocketAddress(m_orcAddress, m_orcPort));
-            NS_LOG_DEBUG("Server connecting to " << m_orcAddress << " on startup with code " << connect_code);
+            m_orcSocket = Socket::CreateSocket (GetNode (), tid);
+            m_orcSocket->Bind ();
+            m_orcSocket->Connect (InetSocketAddress(m_orcAddress, m_orcPort));
         }
-        NS_LOG_DEBUG("Server socket: " << m_socket);
-        m_socket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
-        m_socket->SetAllowBroadcast (true);
+        m_orcSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+        m_orcSocket->SetAllowBroadcast (true);
         SendWaitingTimeUpdate();
+
+        //Make socket for each server
+        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
+            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            Ptr<Socket> tempSocket;
+            tempSocket = Socket::CreateSocket (GetNode (), tid);
+            tempSocket->Bind ();
+            //TODO check that the below returns the correct type etc.
+            tempSocket->Connect (*it);
+            tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+            tempSocket->SetAllowBroadcast (true);
+            serverSocketMap.insert((*it), tempSocket);
+        }
+
     }
 
     void
@@ -121,11 +163,26 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
-        if (m_socket != 0)
+        if (m_orcSocket != 0)
         {
-            m_socket->Close ();
-            m_socket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-            m_socket = 0;
+            m_orcSocket->Close ();
+            m_orcSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            m_orcSocket = 0;
+        }
+
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
+            Ptr<Socket> tempSocket = it->second;
+            tempSocket->Close ();
+            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            tempSocket = 0;
+        }
+        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2 = 0;
+        for (it2 = clientSocketMap.begin(); it2 != clientSocketMap.end(); ++it2){
+            Ptr<Socket> tempSocket = it2->second;
+            tempSocket->Close ();
+            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            tempSocket = 0;
         }
 
         Simulator::Cancel (m_sendEvent);
@@ -162,10 +219,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
-            //Bind to correct destination (ORC)
-//            m_socket->Bind();
-            int connect_code = m_socket->Connect(InetSocketAddress(m_orcAddress, m_orcPort));
-            NS_LOG_DEBUG("Server connecting to " << m_orcAddress << "on SendWaitingTimeUpdate with code " << connect_code);
 
             //Calculate waiting time (in ms)
             NS_LOG_DEBUG("myClients.size(): " << myClients.size());
@@ -189,7 +242,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             //Send packet
             Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
             m_txTrace(p);
-            m_socket->Send(p);
+            m_orcSocket->Send(p);
 
             ++m_sent;
 
@@ -210,10 +263,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     MecHoServerApplication::SendUeTransfer (void)
     {
         if (Simulator::Now() > noSendUntil){
-//            m_socket->Bind();
-            int connect_code = m_socket->Connect(InetSocketAddress(m_newAddress, m_newPort));
-            NS_LOG_DEBUG("Server connecting to " << m_newAddress << " on UE transfer with code " << connect_code);
-
             //Create packet payload
             uint8_t *buffer = GetFilledString("", UE_SIZE);
 
@@ -222,9 +271,24 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace(p);
-            m_socket->Send(p);
+            std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+            Ptr<Socket> newSocket = 0;
+            for (it = serverSocketMap.begin(); it != serverSocketMap.end() && newSocket == 0; ++it){
+                InetSocketAddress current = it->first;
+                if(current.GetIpv4() == m_newAddress && current.GetPort() == m_newPort){
+                    newSocket = it->second;
+                }
+            }
+            if (newSocket != 0){
+                newSocket->Send(p);
+                ++m_sent;
+            }
+            else {
+                NS_LOG_ERROR("Attempt to send to non-existing server socket");
+            }
 
-            ++m_sent;
+
+
         }
         else {
             m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this);
@@ -238,7 +302,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         if(Simulator::Now() > noSendUntil){
             m_txTrace(m_packet);
-            m_socket->Send(m_packet);
+            m_echoSocket->Send(m_packet);
 
             ++m_sent;
         }
@@ -246,6 +310,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this);
         }
     }
+
 
     void
     MecHoServerApplication::HandleRead (Ptr<Socket> socket)
@@ -264,6 +329,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 uint32_t packetSize = packet->GetSize();
                 uint8_t *buffer = new uint8_t[packetSize];
                 packet->CopyData(buffer, packetSize);
+
                 std::string payloadString = std::string((char*)buffer);
 
                 //Split the payload string into arguments
@@ -296,14 +362,23 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                             //UE is connected to another eNB; add "penalty" for having to go through network
                             delay = m_expectedWaitingTime + 15;
                         }
-                        //Bind to correct socket
-//                        m_socket->Bind();
-                        int connect_code = m_socket->Connect(inet_from);
-                        NS_LOG_DEBUG("Server connecting to " << inet_from.GetIpv4() << "on receive service request with code " << connect_code);
-
-                        //Echo packet back to sender with appropriate delay
-                        Simulator::Schedule(Seconds(delay / 1000), &MecHoServerApplication::SendEcho, this);
-
+                        //Find right socket to connect to
+                        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+                        Ptr<Socket> newSocket = 0;
+                        for (it = clientSocketMap.begin(); it != clientSocketMap.end() && newSocket == 0; ++it){
+                            InetSocketAddress current = it->first;
+                            if(current.GetIpv4() == inet_from.GetIpv4() && current.GetPort() == inet_from.GetPort()){
+                                newSocket = it->second;
+                            }
+                        }
+                        if (newSocket != 0){
+                            m_echoSocket = newSocket;
+                            //Echo packet back to sender with appropriate delay
+                            Simulator::Schedule(Seconds(delay / 1000), &MecHoServerApplication::SendEcho, this);
+                        }
+                        else{
+                            NS_LOG_ERROR("Attempted to connect to a non-existent client (UE) socket");
+                        }
                         break;
                     }
                     case 4: {

@@ -144,7 +144,9 @@ namespace ns3 {
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
-            m_allServers.push_back(ipv4);
+            m_allServers.push_back(InetSocketAddress(ipv4,1001));
+
+
         }
     }
 
@@ -174,34 +176,39 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
-
-        InetSocketAddress m_mecAddress = InetSocketAddress(m_mecIp, m_mecPort);
-        if (m_socket == 0)
+        //Make ORC socket
+        if (m_orcSocket == 0)
         {
-//            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            TypeId tid = UdpSocketFactory::GetTypeId();
-            m_socket = Socket::CreateSocket (GetNode (), tid);
-            if (Ipv4Address::IsMatchingType(m_mecAddress) == true)
-            {
-                m_socket->Bind();
-                m_socket->Connect (m_mecAddress);
-            }
-            else if (InetSocketAddress::IsMatchingType (m_mecAddress) == true)
-            {
-                m_socket->Bind ();
-                m_socket->Connect (m_mecAddress);
-            }
-            else
-            {
-                NS_ASSERT_MSG (false, "Incompatible address type: " << m_mecAddress);
+            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            m_orcSocket = Socket::CreateSocket (GetNode (), tid);
+            m_orcSocket->Bind ();
+            m_orcSocket->Connect (InetSocketAddress(m_orcIp, m_orcPort));
+        }
+        m_orcSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+        m_orcSocket->SetAllowBroadcast (true);
+
+        //Make socket for each server
+        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
+            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            Ptr<Socket> tempSocket;
+            tempSocket = Socket::CreateSocket (GetNode (), tid);
+            tempSocket->Bind ();
+            //TODO check that the below returns the correct type etc.
+            tempSocket->Connect (*it);
+            tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+            tempSocket->SetAllowBroadcast (true);
+            serverSocketMap.insert((*it), tempSocket);
+
+            //set currentMecSocket
+            if ((*it).GetIpv4() == m_mecIp && (*it).GetPort() == m_mecPort){
+                //this MEC is our current MEC
+                currentMecSocket = tempSocket;
             }
         }
-        NS_LOG_DEBUG("UE socket: " << m_socket);
-        m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
-        m_socket->SetAllowBroadcast (true);
-//        SendServiceRequest ();
+
+
+
         m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendServiceRequest, this);
-//        SendPing ();
         Simulator::Schedule(Seconds(2), &MecUeApplication::SendPing, this);
     }
 
@@ -211,11 +218,19 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
-        if (m_socket != 0)
+        if (m_orcSocket != 0)
         {
-            m_socket->Close ();
-            m_socket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-            m_socket = 0;
+            m_orcSocket->Close ();
+            m_orcSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            m_orcSocket = 0;
+        }
+
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
+            Ptr<Socket> tempSocket = it->second;
+            tempSocket->Close ();
+            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            tempSocket = 0;
         }
 
         Simulator::Cancel (m_sendPingEvent);
@@ -311,9 +326,6 @@ namespace ns3 {
         NS_LOG_FUNCTION(this);
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
-        m_socket->Bind();
-        m_socket->Connect (InetSocketAddress(m_mecIp, m_mecPort));
-
         if (Simulator::Now() < m_noSendUntil){
             m_requestSent = Simulator::Now();
             m_requestBlocked = true;
@@ -333,7 +345,7 @@ namespace ns3 {
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace (p);
-            m_socket->Send (p);
+            currentMecSocket->Send (p);
 
             ++m_sent;
 
@@ -360,8 +372,6 @@ namespace ns3 {
             }
             else {
                 m_pingSent.insert(std::pair<Ipv4Address, Time>(mec.GetIpv4(), Simulator::Now()));
-                m_socket->Bind();
-                m_socket->Connect(mec);
 
 
                 //Create packet payload
@@ -374,7 +384,10 @@ namespace ns3 {
                 // call to the trace sinks before the packet is actually sent,
                 // so that tags added to the packet can be sent as well
                 m_txTrace(p);
-                m_socket->Send(p);
+
+                //Determine correct server socket and send
+                Ptr<Socket> pingSocket = serverSocketMap.find(mec)->second;
+                pingSocket->Send(p);
 
                 ++m_sent;
 
@@ -389,11 +402,6 @@ namespace ns3 {
 
     void
     MecUeApplication::SendMeasurementReport (void){
-
-
-        //Bind to ORC address
-        m_socket->Bind();
-        m_socket->Connect (InetSocketAddress(m_orcIp, m_orcPort));
 
         //Create packet payload
         //Convert current mec address into string
@@ -423,7 +431,7 @@ namespace ns3 {
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
-        m_socket->Send (p);
+        m_orcSocket->Send (p);
 
         ++m_sent;
 
@@ -505,9 +513,9 @@ namespace ns3 {
                         NS_LOG_INFO("Handover," << Simulator::Now()<< "," << m_thisIpAddress << "," << m_mecIp << "," << newAddress << "\n");
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
-                        m_socket->Bind();
-                        m_socket->Connect (InetSocketAddress(m_mecIp, m_mecPort));
-
+                        //Set current_server socket to new server address
+                        currentMecSocket = serverSocketMap.find(InetSocketAddress(m_mecIp, m_mecPort))->second;
+                        
                         //Set no-send period
                         m_noSendUntil = Simulator::Now() + Time(args[3]);
                         break;

@@ -42,6 +42,18 @@ namespace ns3 {
                                UintegerValue (100),
                                MakeUintegerAccessor (&MecOrcApplication::m_packetSize),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("AllServers", "Container of all server addresses",
+                               StringValue("x"),
+                               MakeStringAccessor (&MecOrcApplication::m_serverString),
+                               MakeStringChecker())
+                .AddAttribute ("AllUes", "Container of all UE addresses",
+                               StringValue("x"),
+                               MakeStringAccessor (&MecOrcApplication::m_ueString),
+                               MakeStringChecker())
+                .AddAttribute ("UePort", "Port that UEs use",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecOrcApplication::m_uePort),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecOrcApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -57,6 +69,52 @@ namespace ns3 {
         m_sendMecEvent = EventId ();
         m_data_ue = 0;
         m_data_mec = 0;
+
+        //Parse server string into InetSocketAddress vector
+        std::vector<std::string> args;
+        std::string tempString;
+        for (int i = 0 ; i < int(m_serverString.length()); i++){
+            char c = m_serverString[i];
+            if(c == '/'){
+                args.push_back(tempString);
+                tempString = "";
+            }
+            else{
+                tempString.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args.size()) ; i++){
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allServers.push_back(InetSocketAddress(ipv4, 1001));
+        }
+
+        //Parse UE string into InetSocketAddress vector
+        std::vector<std::string> args2;
+        std::string tempString2;
+        for (int i = 0 ; i < int(m_serverString.length()); i++){
+            char c = m_serverString[i];
+            if(c == '/'){
+                args2.push_back(tempString2);
+                tempString2 = "";
+            }
+            else{
+                tempString2.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args2.size()) ; i++){
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args2[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allUes.push_back(InetSocketAddress(ipv4, 1002));
+        }
     }
 
     MecOrcApplication::~MecOrcApplication() {
@@ -80,26 +138,53 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
-        if (m_socket == 0)
-        {
+        //Make socket for each server
+        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            m_socket = Socket::CreateSocket (GetNode (), tid);
+            Ptr<Socket> tempSocket;
+            tempSocket = Socket::CreateSocket (GetNode (), tid);
+            tempSocket->Bind ();
+            //TODO check that the below returns the correct type etc.
+            tempSocket->Connect (*it);
+            tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
+            tempSocket->SetAllowBroadcast (true);
+            serverSocketMap.insert((*it), tempSocket);
         }
-        NS_LOG_DEBUG("Orchestrator socket: " << m_socket);
-        m_socket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
-        m_socket->SetAllowBroadcast (true);
+
+        //Make socket for each UE
+        for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
+            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            Ptr<Socket> tempSocket;
+            tempSocket = Socket::CreateSocket (GetNode (), tid);
+            tempSocket->Bind ();
+            //TODO check that the below returns the correct type etc.
+            tempSocket->Connect (*it);
+            tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
+            tempSocket->SetAllowBroadcast (true);
+            ueSocketMap.insert((*it), tempSocket);
+        }
     }
 
     void
     MecOrcApplication::StopApplication () {
         NS_LOG_FUNCTION (this);
 
-        if (m_socket != 0)
-        {
-            m_socket->Close ();
-            m_socket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-            m_socket = 0;
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
+            Ptr<Socket> tempSocket = it->second;
+            tempSocket->Close ();
+            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            tempSocket = 0;
         }
+        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2 = 0;
+        for (it2 = ueSocketMap.begin(); it2 != ueSocketMap.end(); ++it2){
+            Ptr<Socket> tempSocket = it2->second;
+            tempSocket->Close ();
+            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            tempSocket = 0;
+        }
+
+
     }
 
     uint8_t*
@@ -130,8 +215,6 @@ namespace ns3 {
     void
     MecOrcApplication::SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress) {
 
-        m_socket->Bind();
-        m_socket->Connect (ueAddress);
 
         //Convert Address into string
         Ipv4Address addr = newMecAddress.GetIpv4();
@@ -155,17 +238,28 @@ namespace ns3 {
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
-        m_socket->Send (p);
 
-        ++m_sent;
+        //Find correct UE to connect to and send message trough the matching socket
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        Ptr<Socket> newSocket = 0;
+        for (it = ueSocketMap.begin(); it != ueSocketMap.end() && newSocket == 0; ++it){
+            InetSocketAddress current = it->first;
+            if(current.GetIpv4() == ueAddress.GetIpv4() && current.GetPort() == ueAddress.GetPort()){
+                newSocket = it->second;
+            }
+        }
+        if (newSocket != 0){
+            newSocket->Send(p);
+            ++m_sent;
+        }
+        else {
+            NS_LOG_ERROR("Attempt to send to non-existing server socket");
+        }
     }
 
     void
     MecOrcApplication::SendMecHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress)
     {
-        m_socket->Bind();
-        m_socket->Connect (newMecAddress);
-
         //Convert ueAddress into string
         Ipv4Address ueAddr = ueAddress.GetIpv4();
         std::stringstream ss;
@@ -191,9 +285,23 @@ namespace ns3 {
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace(p);
-        m_socket->Send(p);
 
-        ++m_sent;
+        //Find correct MEC to connect to and send message trough the matching socket
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        Ptr<Socket> newSocket = 0;
+        for (it = ueSocketMap.begin(); it != ueSocketMap.end() && newSocket == 0; ++it){
+            InetSocketAddress current = it->first;
+            if(current.GetIpv4() == newMecAddress.GetIpv4() && current.GetPort() == newMecAddress.GetPort()){
+                newSocket = it->second;
+            }
+        }
+        if (newSocket != 0){
+            newSocket->Send(p);
+            ++m_sent;
+        }
+        else {
+            NS_LOG_ERROR("Attempt to send to non-existing server socket");
+        }
     }
 
     void
