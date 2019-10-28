@@ -590,6 +590,15 @@ public:
   */
   int64_t AssignStreams (NetDeviceContainer c, int64_t stream);
 
+    /**
+     * Create a UE device (LteUeNetDevice) on the given node
+     * \param n the node where the device is to be installed
+     * \return pointer to the created device
+     */
+    Ptr<NetDevice> InstallSingleUeDevice (Ptr<Node> n);
+
+    std::pair<Ptr<NetDevice>, uint64_t> InstallSingleUeDeviceMec (Ptr<Node> n);
+
 protected:
   // inherited from Object
   virtual void DoInitialize (void);
@@ -601,13 +610,6 @@ private:
    * \return pointer to the created device
    */
   Ptr<NetDevice> InstallSingleEnbDevice (Ptr<Node> n);
-
-  /**
-   * Create a UE device (LteUeNetDevice) on the given node
-   * \param n the node where the device is to be installed
-   * \return pointer to the created device
-   */
-  Ptr<NetDevice> InstallSingleUeDevice (Ptr<Node> n);
 
   /**
    * The actual function to trigger a manual handover.

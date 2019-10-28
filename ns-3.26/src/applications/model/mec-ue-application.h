@@ -62,9 +62,9 @@ namespace ns3 {
         virtual ~MecUeApplication ();
 
         /**
-         * Add string to result, then fill the rest of the packet with '#' characters
-         */
-        uint8_t* GetFilledString(std::string filler);
+        * Add string to result, then fill the rest of the packet with '#' characters
+        */
+        uint8_t* GetFilledString(std::string filler, int size);
 
     protected:
         virtual void DoDispose (void);
@@ -88,6 +88,8 @@ namespace ns3 {
         void SendPing(void);
         void SendMeasurementReport(void);
 
+        void NextService(Time);
+
         uint16_t GetCellId(void);
         uint16_t CheckEnb(Ptr<LteEnbNetDevice> enb);
 
@@ -107,9 +109,9 @@ namespace ns3 {
         uint8_t *m_data_ping;
         uint8_t *m_data_report;
         Ipv4Address m_mecIp;
-        uint8_t m_mecPort;
+        uint32_t m_mecPort;
         Ipv4Address m_orcIp;
-        uint8_t m_orcPort;
+        uint32_t m_orcPort;
         Ptr<Node> m_thisNode;
         bool m_requestBlocked;
         Ptr<NetDevice> m_thisNetDevice;
@@ -136,6 +138,7 @@ namespace ns3 {
         Ptr<LteEnbNetDevice> m_enb1;
         Ptr<LteEnbNetDevice> m_enb2;
         std::vector<Ptr<LteEnbNetDevice>> m_enbDevices;
+        uint64_t ueImsi;
 
     };
 

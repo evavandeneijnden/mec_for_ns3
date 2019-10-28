@@ -81,7 +81,7 @@ main (int argc, char *argv[])
     cmd.Parse(argc, argv);
 
     Ptr<Node> pgw = epcHelper->GetPgwNode ();
-    NS_LOG_DEBUG("PGW is node " << pgw->GetId());
+//    NS_LOG_DEBUG("PGW is node " << pgw->GetId());
 
     // Create RemoteHosts
     NodeContainer remoteHostContainer;
@@ -112,7 +112,7 @@ main (int argc, char *argv[])
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
     NodeContainer::Iterator j;
     for (j = remoteHostContainer.Begin (); j != remoteHostContainer.End (); ++j) {
-        NS_LOG_DEBUG("Setting IP addresses for server/ORC");
+//        NS_LOG_DEBUG("Setting IP addresses for server/ORC");
         Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting ((*j)->GetObject<Ipv4> ());
         remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
     }
@@ -121,16 +121,14 @@ main (int argc, char *argv[])
     NodeContainer::Iterator k;
     for (k = remoteHostContainer.Begin (); k != remoteHostContainer.End (); ++k) {
         Ptr<Ipv4> ipv4 = (*k)->GetObject<Ipv4>();
-        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
-        Ipv4Address address = iaddr.GetLocal();
-        NS_LOG_DEBUG("Node (ORC/SERVER) " << (*k)->GetId() << ",address: " << address);
+//        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
+//        Ipv4Address address = iaddr.GetLocal();
+//        NS_LOG_DEBUG("Node (ORC/SERVER) " << (*k)->GetId() << ",address: " << address);
     }
 
     NodeContainer ueNodes;
     NodeContainer enbNodes;
-    NS_LOG_DEBUG("Creating Enb Nodes");
     enbNodes.Create(numberOfEnbs);
-    NS_LOG_DEBUG("Creating UE nodes");
     ueNodes.Create(numberOfUes);
 
     // Install Mobility Model
@@ -171,12 +169,17 @@ main (int argc, char *argv[])
 
     // Install LTE Devices to the nodes
 
-    NS_LOG_DEBUG("Install eNBs");
     NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
-    Ptr<NetDevice> thisDevice = (enbLteDevs.Get(0));
-    Ptr<LteUeNetDevice> lteDevice = (LteUeNetDevice*) &thisDevice;
-    NS_LOG_DEBUG("Install UEs");
-    NetDeviceContainer ueLteDevs = lteHelper->InstallUeDevice (ueNodes);
+    NetDeviceContainer ueLteDevs;
+    std::map<Ptr<Node>, uint64_t> ueImsiMap;
+    for (uint32_t i = 0; i < ueNodes.GetN(); i++){
+        Ptr<Node> ue = ueNodes.Get(i);
+        std::pair<Ptr<NetDevice>, uint64_t> installResult = lteHelper->InstallSingleUeDeviceMec(ue);
+        Ptr<NetDevice> netDevice = installResult.first;
+        uint64_t imsi = installResult.second;
+        ueImsiMap.insert(std::pair<Ptr<Node>, uint64_t>(ue,imsi));
+        ueLteDevs.Add(netDevice);
+    }
 
 
     // Link each MEC to an eNB
@@ -200,7 +203,6 @@ main (int argc, char *argv[])
     // Assign IP address to UEs, and install applications
     for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
     {
-        NS_LOG_DEBUG("Give UE IP stack");
         Ptr<Node> ueNode = ueNodes.Get (u);
         // Set the default gateway for the UE
         Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
@@ -216,22 +218,20 @@ main (int argc, char *argv[])
 
     NodeContainer::Iterator l;
     for (l = enbNodes.Begin (); l != enbNodes.End (); ++l) {
-//        NS_LOG_DEBUG("Number of devices: " << (*l)->GetNDevices());
         Ptr<Ipv4> ipv4 = (*l)->GetObject<Ipv4>();
-        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
-        Ipv4Address address = iaddr.GetLocal();
-        NS_LOG_DEBUG("Node (ENB) " << (*l)->GetId() << ", address: " << address);
+//        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
+//        Ipv4Address address = iaddr.GetLocal();
+//        NS_LOG_DEBUG("Node (ENB) " << (*l)->GetId() << ", address: " << address);
 
     }
     std::vector<Ipv4Address> ueAddresses;
     NodeContainer::Iterator m;
     for (m = ueNodes.Begin (); m != ueNodes.End (); ++m) {
-//        NS_LOG_DEBUG("Number of devices: " << (*m)->GetNDevices());
         Ptr<Ipv4> ipv4 = (*m)->GetObject<Ipv4>();
         Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
         Ipv4Address address = iaddr.GetLocal();
         ueAddresses.push_back(address);
-        NS_LOG_DEBUG("Node (UE) " << (*m)->GetId() << ", address: " << address);
+//        NS_LOG_DEBUG("Node (UE) " << (*m)->GetId() << ", address: " << address);
     }
 
     // Install and start applications on UEs and remote hosts
@@ -258,9 +258,9 @@ main (int argc, char *argv[])
         mecString.append(addrString + "/");
     }
 
-    //TODO Make string of all UE IP addresses (port is always 1002)
+    //Make string of all UE IP addresses (port is always 1002)
     std::string ueString;
-    for (int i = 1; i < int(ueAddresses.size()); i++){
+    for (int i = 0; i < int(ueAddresses.size()); i++){
         //Serialize address
         Ipv4Address addr = ueAddresses[i];
         std::stringstream ss;
@@ -273,16 +273,33 @@ main (int argc, char *argv[])
         ueString.append(ueAddrString + "/");
     }
 
-//    std::vector<Ptr<LteEnbNetDevice>> enbDevs;
-//    NS_LOG_DEBUG("N: " << remoteHostContainer.GetN());
+    //Install ORC application
+    Ptr<Node> orcNode = remoteHostContainer.Get(0);
+    InetSocketAddress orcAddress = InetSocketAddress(remoteAddresses[0], 1000);
+
+    for(int i = 0; i<int(TypeId::GetRegisteredN()); i++){
+        TypeId temp = TypeId::GetRegistered(i);
+        std::string name = temp.GetName();
+    }
+    ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
+    m_factory.Set ("MaxPackets", UintegerValue(10000));
+    m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
+    m_factory.Set ("AllServers", StringValue(mecString));
+    m_factory.Set ("AllUes", StringValue(ueString));
+    m_factory.Set ("UePort", UintegerValue(1002));
+
+    Ptr<Application> app = m_factory.Create<Application> ();
+    orcNode->AddApplication (app);
+    orcApp.Add(app);
+//    NS_LOG_DEBUG("Application (type ORC): " << app << " on node " << orcNode->GetId());
+
+
+//  Install MEC applications
     for (int i = 1; i < int(remoteHostContainer.GetN()); ++i){
         Ptr<Node> node = remoteHostContainer.Get(i);
-//        InetSocketAddress nodeAddress = InetSocketAddress(remoteAddresses[i], 1001);
         Ptr<Node> enbNode = mecEnbMap[node];
         Ptr<NetDevice> device = enbNode->GetDevice(0);
         Ptr<LteEnbNetDevice> netDevice = dynamic_cast<LteEnbNetDevice*>(PeekPointer (device));
-//        NS_LOG_DEBUG("ENB: " << netDevice);
-//        enbDevs.push_back(netDevice);
         uint16_t cellId = netDevice->GetCellId();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecHoServerApplication");
@@ -297,38 +314,13 @@ main (int argc, char *argv[])
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
         mecApps.Add(app);
-        NS_LOG_DEBUG("Application (type MEC): " << app << " on node " << node->GetId());
+//        NS_LOG_DEBUG("Application (type MEC): " << app << " on node " << node->GetId());
     }
-
-
-    //Install ORC application
-    Ptr<Node> orcNode = remoteHostContainer.Get(0);
-    InetSocketAddress orcAddress = InetSocketAddress(remoteAddresses[0], 1000);
-
-    for(int i = 0; i<int(TypeId::GetRegisteredN()); i++){
-        TypeId temp = TypeId::GetRegistered(i);
-        std::string name = temp.GetName();
-    }
-
-    ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
-    m_factory.Set ("MaxPackets", UintegerValue(10000));
-    m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
-    m_factory.Set ("AllServers", StringValue(mecString));
-    m_factory.Set ("AllUes", StringValue(ueString));
-    m_factory.set ("UePort", UintegerValue(1002));
-
-    Ptr<Application> app = m_factory.Create<Application> ();
-    orcNode->AddApplication (app);
-    orcApp.Add(app);
-    NS_LOG_DEBUG("Application (type ORC): " << app << " on node " << orcNode->GetId());
 
     //Install UE applications
-
-
-
     for (int i = 0; i < int(ueNodes.GetN()); ++i){
         Ptr<Node> node = ueNodes.Get(i);
-//        InetSocketAddress nodeAddress = InetSocketAddress(remoteAddresses[i], 1002);
+        uint64_t ueImsi = ueImsiMap.find(node)->second;
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecUeApplication");
         m_factory.Set("MaxPackets", UintegerValue(10000));
@@ -345,13 +337,14 @@ main (int argc, char *argv[])
         m_factory.Set ("Enb1", PointerValue(enbLteDevs.Get(1)));
         m_factory.Set ("Enb2", PointerValue(enbLteDevs.Get(2)));
         m_factory.Set("Node", PointerValue(node));
+        m_factory.Set("ueImsi", UintegerValue(ueImsi));
 
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication (app);
 
         ueApps.Add(ueApps);
-        NS_LOG_DEBUG("Application (type UE): " << app << " on node " << node->GetId());
+//        NS_LOG_DEBUG("Application (type UE): " << app << " on node " << node->GetId());
     }
 
     orcApp.Start(Simulator::Now());

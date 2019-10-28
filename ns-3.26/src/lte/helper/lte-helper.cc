@@ -611,6 +611,139 @@ LteHelper::InstallSingleUeDevice (Ptr<Node> n)
   dlPhy->AddDataSinrChunkProcessor (pData);
 
   if (m_usePdschForCqiGeneration)
+  {
+    // CQI calculation based on PDCCH for signal and PDSCH for interference
+    pCtrl->AddCallback (MakeCallback (&LteUePhy::GenerateMixedCqiReport, phy));
+    Ptr<LteChunkProcessor> pDataInterf = Create<LteChunkProcessor> ();
+    pDataInterf->AddCallback (MakeCallback (&LteUePhy::ReportDataInterference, phy));
+    dlPhy->AddInterferenceDataChunkProcessor (pDataInterf);
+  }
+  else
+  {
+    // CQI calculation based on PDCCH for both signal and interference
+    pCtrl->AddCallback (MakeCallback (&LteUePhy::GenerateCtrlCqiReport, phy));
+  }
+
+
+
+  dlPhy->SetChannel (m_downlinkChannel);
+  ulPhy->SetChannel (m_uplinkChannel);
+
+  Ptr<MobilityModel> mm = n->GetObject<MobilityModel> ();
+  NS_ASSERT_MSG (mm, "MobilityModel needs to be set on node before calling LteHelper::InstallUeDevice ()");
+  dlPhy->SetMobility (mm);
+  ulPhy->SetMobility (mm);
+
+  Ptr<AntennaModel> antenna = (m_ueAntennaModelFactory.Create ())->GetObject<AntennaModel> ();
+  NS_ASSERT_MSG (antenna, "error in creating the AntennaModel object");
+  dlPhy->SetAntenna (antenna);
+  ulPhy->SetAntenna (antenna);
+
+  Ptr<LteUeMac> mac = CreateObject<LteUeMac> ();
+  Ptr<LteUeRrc> rrc = CreateObject<LteUeRrc> ();
+
+  if (m_useIdealRrc)
+  {
+    Ptr<LteUeRrcProtocolIdeal> rrcProtocol = CreateObject<LteUeRrcProtocolIdeal> ();
+    rrcProtocol->SetUeRrc (rrc);
+    rrc->AggregateObject (rrcProtocol);
+    rrcProtocol->SetLteUeRrcSapProvider (rrc->GetLteUeRrcSapProvider ());
+    rrc->SetLteUeRrcSapUser (rrcProtocol->GetLteUeRrcSapUser ());
+  }
+  else
+  {
+    Ptr<LteUeRrcProtocolReal> rrcProtocol = CreateObject<LteUeRrcProtocolReal> ();
+    rrcProtocol->SetUeRrc (rrc);
+    rrc->AggregateObject (rrcProtocol);
+    rrcProtocol->SetLteUeRrcSapProvider (rrc->GetLteUeRrcSapProvider ());
+    rrc->SetLteUeRrcSapUser (rrcProtocol->GetLteUeRrcSapUser ());
+  }
+
+  if (m_epcHelper != 0)
+  {
+    rrc->SetUseRlcSm (false);
+  }
+  Ptr<EpcUeNas> nas = CreateObject<EpcUeNas> ();
+
+  nas->SetAsSapProvider (rrc->GetAsSapProvider ());
+  rrc->SetAsSapUser (nas->GetAsSapUser ());
+
+  rrc->SetLteUeCmacSapProvider (mac->GetLteUeCmacSapProvider ());
+  mac->SetLteUeCmacSapUser (rrc->GetLteUeCmacSapUser ());
+  rrc->SetLteMacSapProvider (mac->GetLteMacSapProvider ());
+
+  phy->SetLteUePhySapUser (mac->GetLteUePhySapUser ());
+  mac->SetLteUePhySapProvider (phy->GetLteUePhySapProvider ());
+
+  phy->SetLteUeCphySapUser (rrc->GetLteUeCphySapUser ());
+  rrc->SetLteUeCphySapProvider (phy->GetLteUeCphySapProvider ());
+
+  NS_ABORT_MSG_IF (m_imsiCounter >= 0xFFFFFFFF, "max num UEs exceeded");
+  uint64_t imsi = ++m_imsiCounter;
+
+  Ptr<LteUeNetDevice> dev = m_ueNetDeviceFactory.Create<LteUeNetDevice> ();
+  dev->SetNode (n);
+  dev->SetAttribute ("Imsi", UintegerValue (imsi));
+  dev->SetAttribute ("LteUePhy", PointerValue (phy));
+  dev->SetAttribute ("LteUeMac", PointerValue (mac));
+  dev->SetAttribute ("LteUeRrc", PointerValue (rrc));
+  dev->SetAttribute ("EpcUeNas", PointerValue (nas));
+
+  phy->SetDevice (dev);
+  dlPhy->SetDevice (dev);
+  ulPhy->SetDevice (dev);
+  nas->SetDevice (dev);
+
+  n->AddDevice (dev);
+  dlPhy->SetLtePhyRxDataEndOkCallback (MakeCallback (&LteUePhy::PhyPduReceived, phy));
+  dlPhy->SetLtePhyRxCtrlEndOkCallback (MakeCallback (&LteUePhy::ReceiveLteControlMessageList, phy));
+  dlPhy->SetLtePhyRxPssCallback (MakeCallback (&LteUePhy::ReceivePss, phy));
+  dlPhy->SetLtePhyDlHarqFeedbackCallback (MakeCallback (&LteUePhy::ReceiveLteDlHarqFeedback, phy));
+  nas->SetForwardUpCallback (MakeCallback (&LteUeNetDevice::Receive, dev));
+
+  if (m_epcHelper != 0)
+  {
+    m_epcHelper->AddUe (dev, dev->GetImsi ());
+  }
+
+  dev->Initialize ();
+
+  return dev;
+}
+
+
+
+std::pair<Ptr<NetDevice>, uint64_t>
+LteHelper::InstallSingleUeDeviceMec (Ptr<Node> n)
+{
+  NS_LOG_FUNCTION (this);
+  Ptr<LteSpectrumPhy> dlPhy = CreateObject<LteSpectrumPhy> ();
+  Ptr<LteSpectrumPhy> ulPhy = CreateObject<LteSpectrumPhy> ();
+
+  Ptr<LteUePhy> phy = CreateObject<LteUePhy> (dlPhy, ulPhy);
+
+  Ptr<LteHarqPhy> harq = Create<LteHarqPhy> ();
+  dlPhy->SetHarqPhyModule (harq);
+  ulPhy->SetHarqPhyModule (harq);
+  phy->SetHarqPhyModule (harq);
+
+  Ptr<LteChunkProcessor> pRs = Create<LteChunkProcessor> ();
+  pRs->AddCallback (MakeCallback (&LteUePhy::ReportRsReceivedPower, phy));
+  dlPhy->AddRsPowerChunkProcessor (pRs);
+
+  Ptr<LteChunkProcessor> pInterf = Create<LteChunkProcessor> ();
+  pInterf->AddCallback (MakeCallback (&LteUePhy::ReportInterference, phy));
+  dlPhy->AddInterferenceCtrlChunkProcessor (pInterf); // for RSRQ evaluation of UE Measurements
+
+  Ptr<LteChunkProcessor> pCtrl = Create<LteChunkProcessor> ();
+  pCtrl->AddCallback (MakeCallback (&LteSpectrumPhy::UpdateSinrPerceived, dlPhy));
+  dlPhy->AddCtrlSinrChunkProcessor (pCtrl);
+
+  Ptr<LteChunkProcessor> pData = Create<LteChunkProcessor> ();
+  pData->AddCallback (MakeCallback (&LteSpectrumPhy::UpdateSinrPerceived, dlPhy));
+  dlPhy->AddDataSinrChunkProcessor (pData);
+
+  if (m_usePdschForCqiGeneration)
     {
       // CQI calculation based on PDCCH for signal and PDSCH for interference
       pCtrl->AddCallback (MakeCallback (&LteUePhy::GenerateMixedCqiReport, phy));
@@ -708,7 +841,7 @@ LteHelper::InstallSingleUeDevice (Ptr<Node> n)
 
   dev->Initialize ();
 
-  return dev;
+  return std::pair<Ptr<NetDevice>, uint64_t>(dev,imsi);
 }
 
 

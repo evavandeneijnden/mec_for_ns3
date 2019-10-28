@@ -93,7 +93,6 @@ namespace ns3 {
             m_allServers.push_back(InetSocketAddress(ipv4, 1001));
         }
 
-        //Parse UE string into InetSocketAddress vector
         std::vector<std::string> args2;
         std::string tempString2;
         for (int i = 0 ; i < int(m_serverString.length()); i++){
@@ -138,30 +137,35 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
+        NS_LOG_DEBUG("ueString: " << m_ueString);
+        NS_LOG_DEBUG("serverString: " << m_serverString);
+
         //Make socket for each server
         for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             Ptr<Socket> tempSocket;
+            InetSocketAddress inet = (*it);
             tempSocket = Socket::CreateSocket (GetNode (), tid);
             tempSocket->Bind ();
-            //TODO check that the below returns the correct type etc.
-            tempSocket->Connect (*it);
+            tempSocket->Connect (inet);
             tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);
-            serverSocketMap.insert((*it), tempSocket);
+            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
+            serverSocketMap.insert(newPair);
         }
 
         //Make socket for each UE
         for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             Ptr<Socket> tempSocket;
+            InetSocketAddress inet2 = (*it);
             tempSocket = Socket::CreateSocket (GetNode (), tid);
             tempSocket->Bind ();
-            //TODO check that the below returns the correct type etc.
-            tempSocket->Connect (*it);
+            tempSocket->Connect (inet2);
             tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);
-            ueSocketMap.insert((*it), tempSocket);
+            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet2, tempSocket);
+            ueSocketMap.insert(newPair);
         }
     }
 
@@ -169,14 +173,14 @@ namespace ns3 {
     MecOrcApplication::StopApplication () {
         NS_LOG_FUNCTION (this);
 
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
         for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
             Ptr<Socket> tempSocket = it->second;
             tempSocket->Close ();
             tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
             tempSocket = 0;
         }
-        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2 = 0;
+        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2;
         for (it2 = ueSocketMap.begin(); it2 != ueSocketMap.end(); ++it2){
             Ptr<Socket> tempSocket = it2->second;
             tempSocket->Close ();
@@ -240,7 +244,7 @@ namespace ns3 {
         m_txTrace (p);
 
         //Find correct UE to connect to and send message trough the matching socket
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
         Ptr<Socket> newSocket = 0;
         for (it = ueSocketMap.begin(); it != ueSocketMap.end() && newSocket == 0; ++it){
             InetSocketAddress current = it->first;
@@ -287,7 +291,7 @@ namespace ns3 {
         m_txTrace(p);
 
         //Find correct MEC to connect to and send message trough the matching socket
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
         Ptr<Socket> newSocket = 0;
         for (it = ueSocketMap.begin(); it != ueSocketMap.end() && newSocket == 0; ++it){
             InetSocketAddress current = it->first;

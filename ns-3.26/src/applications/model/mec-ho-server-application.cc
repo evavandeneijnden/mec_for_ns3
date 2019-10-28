@@ -76,8 +76,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         NS_LOG_FUNCTION (this);
         m_sent = 0;
         m_orcSocket = 0;
-        serverSocketMap = 0;
-        clientSocketMap = 0;
         m_sendEvent = EventId ();\
         m_transferEvent = EventId();
         m_echoEvent = EventId();
@@ -114,8 +112,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
         m_orcSocket = 0;
-        serverSocketMap = 0;
-        clientSocketMap = 0;
 
     }
 
@@ -150,10 +146,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             tempSocket = Socket::CreateSocket (GetNode (), tid);
             tempSocket->Bind ();
             //TODO check that the below returns the correct type etc.
-            tempSocket->Connect (*it);
+            InetSocketAddress inet = (*it);
+            tempSocket->Connect (inet);
             tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);
-            serverSocketMap.insert((*it), tempSocket);
+            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
+            serverSocketMap.insert(newPair);
         }
 
     }
@@ -170,14 +168,14 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_orcSocket = 0;
         }
 
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
         for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
             Ptr<Socket> tempSocket = it->second;
             tempSocket->Close ();
             tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
             tempSocket = 0;
         }
-        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2 = 0;
+        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2;
         for (it2 = clientSocketMap.begin(); it2 != clientSocketMap.end(); ++it2){
             Ptr<Socket> tempSocket = it2->second;
             tempSocket->Close ();
@@ -221,17 +219,17 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         if (Simulator::Now() > noSendUntil) {
 
             //Calculate waiting time (in ms)
-            NS_LOG_DEBUG("myClients.size(): " << myClients.size());
-            double serviceRho = (myClients.size() * MSG_FREQ) / MEC_RATE;
+//            NS_LOG_DEBUG("myClients.size(): " << clientSocketMap.size());
+            double serviceRho = (clientSocketMap.size() * MSG_FREQ) / MEC_RATE;
             double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * (1 / MEC_RATE);
             double pingRho = (m_noUes * MEAS_FREQ) / MEC_RATE;
             double expectedPingWaitingTime = (pingRho / (1 - pingRho)) * (1 / MEC_RATE);
             double handoverFrequency = m_noHandovers / ((Simulator::Now() - m_startTime).GetSeconds());
             double handoverRho = handoverFrequency / MEC_RATE;
             double expectedHandoverWaitingTime = (handoverRho / (1 - handoverRho)) * (1 / MEC_RATE);
-            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceWaitingTime:" << expectedServiceWaitingTime << ", pingRho: "
-                          << pingRho << ", expectedPingWaitingTime: " << expectedPingWaitingTime << ",handoverFrequency: " << handoverFrequency
-                          << ", handoverRho: " << handoverRho << ", expectedHandoverWaitingTime: " << expectedHandoverWaitingTime);
+//            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceWaitingTime:" << expectedServiceWaitingTime << ", pingRho: "
+//                          << pingRho << ", expectedPingWaitingTime: " << expectedPingWaitingTime << ",handoverFrequency: " << handoverFrequency
+//                          << ", handoverRho: " << handoverRho << ", expectedHandoverWaitingTime: " << expectedHandoverWaitingTime);
             m_expectedWaitingTime = int((expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime) * 1000);
 
             //Create packet payload
@@ -271,7 +269,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace(p);
-            std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+            std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
             Ptr<Socket> newSocket = 0;
             for (it = serverSocketMap.begin(); it != serverSocketMap.end() && newSocket == 0; ++it){
                 InetSocketAddress current = it->first;
@@ -353,17 +351,18 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         int delay = 0; //in ms
 
                         if (int(m_cellId) == ue_cellId){
-                            if (myClients.find(inet_from) == myClients.end()){
-                                myClients.insert(inet_from);
+                            if (myClients.find(inet_from) != myClients.end()){
+                                delay = m_expectedWaitingTime;
                             }
-                            delay = m_expectedWaitingTime;
+
                         }
                         else {
                             //UE is connected to another eNB; add "penalty" for having to go through network
+                            myClients.insert(inet_from);
                             delay = m_expectedWaitingTime + 15;
                         }
                         //Find right socket to connect to
-                        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+                        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
                         Ptr<Socket> newSocket = 0;
                         for (it = clientSocketMap.begin(); it != clientSocketMap.end() && newSocket == 0; ++it){
                             InetSocketAddress current = it->first;
@@ -397,9 +396,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         InetSocketAddress newInet = InetSocketAddress(m_newAddress, m_newPort);
 
                         //TODO remove UE from client list --> check that this works as expected!
-                        NS_LOG_DEBUG("before erase: " << myClients.size());
+//                        NS_LOG_DEBUG("before erase: " << myClients.size());
                         myClients.erase(newInet);
-                        NS_LOG_DEBUG("after erase: " << myClients.size());
+//                        NS_LOG_DEBUG("after erase: " << myClients.size());
                         //Initiate handover
                         Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this);
                         break;

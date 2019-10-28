@@ -32,6 +32,7 @@
 #include "ns3/socket-factory.h"
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
+#include "ns3/string.h"
 #include "ns3/trace-source-accessor.h"
 
 namespace ns3 {
@@ -97,7 +98,6 @@ namespace ns3 {
         int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
         std::map<InetSocketAddress, int> waitingTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
 
-        //TODO make maps for UE and server sockets
 
         std::string m_serverString;
         std::string m_ueString;

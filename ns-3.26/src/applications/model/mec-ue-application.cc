@@ -105,6 +105,11 @@ namespace ns3 {
                                PointerValue(),
                                MakePointerAccessor (&MecUeApplication::m_thisNode),
                                MakePointerChecker<Node> ())
+                .AddAttribute ("ueImsi",
+                               "IMSI of this UE",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecUeApplication::ueImsi),
+                               MakeUintegerChecker<uint64_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecUeApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -116,44 +121,45 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
         m_sent = 0;
-        m_socket = 0;
         m_sendPingEvent = EventId ();
         m_sendServiceEvent = EventId ();
+//        NS_LOG_DEBUG("SendServiceEvent: " << m_sendServiceEvent.GetUid());
         m_data_request = 0;
         m_data_ping = 0;
         m_data_report = 0;
         m_requestBlocked = false;
 //        m_thisNetDevice = m_thisNode->GetDevice(0);
 
-        std::vector<std::string> args;
-        std::string tempString;
-        for (int i = 0 ; i < int(m_serverString.length()); i++){
-            char c = m_serverString[i];
-            if(c == '/'){
-            args.push_back(tempString);
-            tempString = "";
-            }
-            else{
-            tempString.push_back(c);
-            }
-        }
-        for(int i = 0; i< int(args.size()) ; i++){
-            Ipv4Address ipv4 = Ipv4Address();
-            std::string addrString = args[i];
-            char cstr[addrString.size() + 1];
-            addrString.copy(cstr, addrString.size()+1);
-            cstr[addrString.size()] = '\0';
-            ipv4.Set(cstr);
-            m_allServers.push_back(InetSocketAddress(ipv4,1001));
-
-
-        }
+//        std::vector<std::string> args;
+//        std::string tempString;
+//        NS_LOG_DEBUG("Length serverstring: " << m_serverString.length());
+//        for (int i = 0 ; i < int(m_serverString.length()); i++){
+//            char c = m_serverString[i];
+//            if(c == '/'){
+//            args.push_back(tempString);
+//            tempString = "";
+//            }
+//            else{
+//            tempString.push_back(c);
+//            }
+//        }
+//        for(int i = 0; i< int(args.size()) ; i++){
+//            NS_LOG_DEBUG("Args loop");
+//            Ipv4Address ipv4 = Ipv4Address();
+//            std::string addrString = args[i];
+//            char cstr[addrString.size() + 1];
+//            addrString.copy(cstr, addrString.size()+1);
+//            cstr[addrString.size()] = '\0';
+//            ipv4.Set(cstr);
+//            m_allServers.push_back(InetSocketAddress(ipv4,1001));
+//
+//
+//        }
     }
 
     MecUeApplication::~MecUeApplication()
     {
         NS_LOG_FUNCTION (this);
-        m_socket = 0;
 
         delete [] m_data_request;
         delete [] m_data_ping;
@@ -176,6 +182,30 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
+        std::vector<std::string> args;
+        std::string tempString;
+        for (int i = 0 ; i < int(m_serverString.length()); i++){
+            char c = m_serverString[i];
+            if(c == '/'){
+                args.push_back(tempString);
+                tempString = "";
+            }
+            else{
+                tempString.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args.size()) ; i++){
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allServers.push_back(InetSocketAddress(ipv4,1001));
+
+
+        }
+
         //Make ORC socket
         if (m_orcSocket == 0)
         {
@@ -184,7 +214,7 @@ namespace ns3 {
             m_orcSocket->Bind ();
             m_orcSocket->Connect (InetSocketAddress(m_orcIp, m_orcPort));
         }
-        m_orcSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+        m_orcSocket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
         m_orcSocket->SetAllowBroadcast (true);
 
         //Make socket for each server
@@ -194,10 +224,12 @@ namespace ns3 {
             tempSocket = Socket::CreateSocket (GetNode (), tid);
             tempSocket->Bind ();
             //TODO check that the below returns the correct type etc.
-            tempSocket->Connect (*it);
-            tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+            InetSocketAddress inet = (*it);
+            tempSocket->Connect (inet);
+            tempSocket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);
-            serverSocketMap.insert((*it), tempSocket);
+            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
+            serverSocketMap.insert(newPair);
 
             //set currentMecSocket
             if ((*it).GetIpv4() == m_mecIp && (*it).GetPort() == m_mecPort){
@@ -209,7 +241,8 @@ namespace ns3 {
 
 
         m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendServiceRequest, this);
-        Simulator::Schedule(Seconds(2), &MecUeApplication::SendPing, this);
+//        NS_LOG_DEBUG("SendServiceEvent 2: " << m_sendServiceEvent.GetUid());
+        m_sendPingEvent = Simulator::Schedule(Seconds(2), &MecUeApplication::SendPing, this);
     }
 
 
@@ -225,7 +258,7 @@ namespace ns3 {
             m_orcSocket = 0;
         }
 
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it = 0;
+        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
         for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
             Ptr<Socket> tempSocket = it->second;
             tempSocket->Close ();
@@ -237,27 +270,26 @@ namespace ns3 {
         Simulator::Cancel (m_sendServiceEvent);
     }
 
+
     uint8_t*
-    MecUeApplication::GetFilledString (std::string filler) {
-        //dest can either be m_data_request or m_data_ping or m_data_report
+    MecUeApplication::GetFilledString (std::string filler, int size) {
         NS_LOG_FUNCTION(this << filler);
 
         std::string result;
-        uint8_t *val = (uint8_t *) malloc(m_size + 1);
+        uint8_t *val = (uint8_t *) malloc(size + 1);
 
         int fillSize = filler.size();
 
-        if (fillSize >= int(m_size)) {
-            NS_LOG_ERROR("Filler for packet larger than packet size");
+        if (fillSize >= int(size)) {
             StopApplication();
         } else {
             result.append(filler);
-            for (int i = result.size(); i < int(m_size); i++) {
+            for (int i = result.size(); i < int(size); i++) {
                 result.append("#");
             }
 
-            std::memset(val, 0, m_size + 1);
-            std::memcpy(val, result.c_str(), m_size + 1);
+            std::memset(val, 0, size + 1);
+            std::memcpy(val, result.c_str(), size + 1);
         }
         return val;
     }
@@ -265,28 +297,19 @@ namespace ns3 {
 
     uint16_t MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
         NS_LOG_FUNCTION(this);
-        uint16_t result = 0;
+        uint16_t result = 65000;
 
-        Ptr<NetDevice> thisDevice = (m_thisNode->GetDevice(0));
-        Ptr<LteUeNetDevice> lteDevice = (LteUeNetDevice*) &thisDevice;
-        uint64_t ueImsi = lteDevice->GetImsi();
         Ptr<LteEnbRrc> rrc = enb->GetRrc();
         std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
         std::map<uint16_t, Ptr<UeManager>>::iterator it;
-        NS_LOG_DEBUG("2");
         for(it = ueMap.begin(); it != ueMap.end(); ++it){
-            NS_LOG_DEBUG("For");
             Ptr<UeManager> manager = it->second;
-            NS_LOG_DEBUG("For2");
             uint64_t imsi = manager->GetImsi();
-            NS_LOG_DEBUG("For3");
             if(ueImsi == imsi){
                 result = enb->GetCellId();
-                NS_LOG_DEBUG("Result found & updated");
                 break;
             }
         }
-//        NS_LOG_DEBUG("Result: " << result);
         return result;
     }
 
@@ -295,19 +318,18 @@ namespace ns3 {
 
         uint16_t result;
         uint16_t enb0_result = CheckEnb(m_enb0);
-//        NS_LOG_DEBUG("Test");
 
-        if(int(enb0_result) != -1){
+        if(int(enb0_result) != 65000){
             result = enb0_result;
         }
         else {
             uint16_t enb1_result = CheckEnb(m_enb1);
-            if(int(enb1_result) != -1){
+            if(int(enb1_result) != 65000){
                 result = enb1_result;
             }
             else {
                 uint16_t enb2_result = CheckEnb(m_enb2);
-                if(int(enb2_result) != -1){
+                if(int(enb2_result) != 65000){
                     result = enb2_result;
                 }
                 else{
@@ -321,9 +343,17 @@ namespace ns3 {
 
     }
 
+//    void
+//    MecUeApplication::NextService(Time interval){
+//        NS_LOG_FUNCTION(this);
+//        m_sendServiceEvent = Simulator::Schedule (MilliSeconds(150), &MecUeApplication::SendServiceRequest, this);
+////        NS_LOG_DEBUG("SendServiceEvent 3: " << m_sendServiceEvent.GetUid());
+//    }
+
     void
     MecUeApplication::SendServiceRequest (void) {
         NS_LOG_FUNCTION(this);
+//        NS_LOG_DEBUG("Delay left: " << Simulator::GetDelayLeft(m_sendServiceEvent));
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
         if (Simulator::Now() < m_noSendUntil){
@@ -337,7 +367,8 @@ namespace ns3 {
             }
             //Create packet payloadU
             std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
-            uint8_t *buffer = GetFilledString(fillString);
+            uint8_t *buffer = GetFilledString(fillString, m_size);
+//            NS_LOG_DEBUG("After getfilled in sendservice");
 
 
             //Create packet
@@ -345,14 +376,19 @@ namespace ns3 {
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace (p);
+//            NS_LOG_DEBUG("test2");
+//            NS_LOG_DEBUG("currentMecSocket: " << currentMecSocket->GetSocketType());
             currentMecSocket->Send (p);
+//            NS_LOG_DEBUG("test3");
 
             ++m_sent;
+//            NS_LOG_DEBUG("After sending packet");
 
 
             if (m_sent < m_count)
             {
                 m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+//                NextService(m_serviceInterval);
             }
 
             m_requestBlocked = false;
@@ -377,7 +413,8 @@ namespace ns3 {
                 //Create packet payload
                 std::string fillString = "1/";
                 fillString.append(std::to_string(GetCellId()) + "/");
-                uint8_t *buffer = GetFilledString(fillString);
+                uint8_t *buffer = GetFilledString(fillString, m_size);
+//                NS_LOG_DEBUG("After getfilled in sendping");
 
                 //Create packet
                 Ptr <Packet> p = Create<Packet>(buffer, m_size);
@@ -392,7 +429,9 @@ namespace ns3 {
                 ++m_sent;
 
                 if (m_sent < m_count) {
-                    m_sendServiceEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendServiceRequest, this);
+                    NS_LOG_DEBUG("Ping interval: " << m_pingInterval);
+                    m_sendPingEvent = Simulator::Schedule(MilliSeconds(m_pingInterval), &MecUeApplication::SendPing, this);
+//                    NS_LOG_DEBUG("SendServiceEvent 4: " << m_sendServiceEvent.GetUid());
                 }
 
                 m_requestBlocked = false;
@@ -424,7 +463,8 @@ namespace ns3 {
 
         payload.push_back('/'); //! is separator character for the measurementReport
 
-        uint8_t *buffer = GetFilledString(payload);
+        uint8_t *buffer = GetFilledString(payload, m_size);
+//        NS_LOG_DEBUG("after getfilled in sendmeasurementreport");
 
         //Create packet
         Ptr<Packet> p = Create<Packet> (buffer, m_size);

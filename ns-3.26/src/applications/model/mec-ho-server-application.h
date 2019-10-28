@@ -32,6 +32,7 @@
 #include "ns3/socket-factory.h"
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
+#include "ns3/string.h"
 #include "ns3/trace-source-accessor.h"
 
 namespace ns3 {
@@ -111,7 +112,7 @@ namespace ns3 {
         std::string m_serverString;
         std::vector<InetSocketAddress> m_allServers;
         Ptr<Socket> m_echoSocket;
-//        std::set<InetSocketAddress> myClients;
+        std::set<InetSocketAddress> myClients;
     };
 
 } // namespace ns3
