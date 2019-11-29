@@ -7,3 +7,6 @@ pybindgen*/
 *.pyc
 **/*.pcap
 *.pcap
+.idea/
+cmake-build-debug/
+ns-3.26/scratch/lena-simple-epc.cc
