@@ -52,6 +52,7 @@ Socket::Socket (void)
     m_ipv6RecvHopLimit (false)
 {
   NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_DEBUG("Created socket: " << this);
   m_boundnetdevice = 0;
   m_recvPktInfo = false;
 
@@ -77,6 +78,7 @@ Socket::CreateSocket (Ptr<Node> node, TypeId tid)
   NS_ASSERT (socketFactory != 0);
   s = socketFactory->CreateSocket ();
   NS_ASSERT (s != 0);
+  NS_LOG_DEBUG("Socket: " << s << "on Node " << node->GetId());
   return s;
 }
 

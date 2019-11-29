@@ -102,6 +102,7 @@ namespace ns3 {
         std::string m_serverString;
         std::string m_ueString;
         uint32_t m_uePort;
+        uint32_t m_mecPort;
         std::vector<InetSocketAddress> m_allServers;
         std::vector<InetSocketAddress> m_allUes;
 

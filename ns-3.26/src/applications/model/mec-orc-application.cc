@@ -54,6 +54,10 @@ namespace ns3 {
                                UintegerValue (),
                                MakeUintegerAccessor (&MecOrcApplication::m_uePort),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("MecPort", "Port that MECs use",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecOrcApplication::m_mecPort),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecOrcApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -146,7 +150,8 @@ namespace ns3 {
             Ptr<Socket> tempSocket;
             InetSocketAddress inet = (*it);
             tempSocket = Socket::CreateSocket (GetNode (), tid);
-            tempSocket->Bind ();
+            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_mecPort);
+            tempSocket->Bind (local);
             tempSocket->Connect (inet);
             tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);
@@ -160,7 +165,8 @@ namespace ns3 {
             Ptr<Socket> tempSocket;
             InetSocketAddress inet2 = (*it);
             tempSocket = Socket::CreateSocket (GetNode (), tid);
-            tempSocket->Bind ();
+            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_uePort);
+            tempSocket->Bind (local);
             tempSocket->Connect (inet2);
             tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);

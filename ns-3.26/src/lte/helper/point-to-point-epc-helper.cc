@@ -245,74 +245,74 @@ PointToPointEpcHelper::AddEnb (Ptr<Node> enb, Ptr<NetDevice> lteEnbNetDevice, ui
 
   ////////////////////////////////////////////////////////////
   //Create MEC server for this eNB (MiM):
-  m_mec = CreateObject<Node> ();
-  internet.Install (m_mec);
-  
-  // create MEC socket on MEC server node
-  Ptr<Socket> mecSocket = Socket::CreateSocket (m_mec, TypeId::LookupByName ("ns3::UdpSocketFactory"));
-  int ret_val = mecSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), m_gtpMecPort));
-  NS_ASSERT (retval == 0);
-  NS_LOG_INFO("m_gtpMecPort on MEC server: " << m_gtpMecPort);
-
-  // create TUN device implementing tunneling of user data over GTP-U/UDP/IP 
-  m_tunMecDevice = CreateObject<VirtualNetDevice> ();
-  // allow jumbo packets
-  m_tunMecDevice->SetAttribute ("Mtu", UintegerValue (30000));
-
-  // yes we need this
-  m_tunMecDevice->SetAddress (Mac48Address::Allocate ()); 
-
-  m_mec->AddDevice (m_tunMecDevice);
-  NetDeviceContainer tunMecDeviceContainer;
-  tunMecDeviceContainer.Add (m_tunMecDevice);
-  
-  // the TUN device is on the same subnet as the UEs, so when a packet
-  // addressed to an UE arrives at the WAN interface of
-  // the MEC it will be forwarded to the TUN device. 
-  Ipv4InterfaceContainer tunMecDeviceIpv4IfContainer = m_ueAddressHelper.Assign (tunMecDeviceContainer);  
-
-  // create MecServerApplication on MEC server node
-  m_mecServerApp = CreateObject<MecServerApplication> (m_tunMecDevice, mecSocket);
-  m_mec->AddApplication (m_mecServerApp);
-  
-  // connect MecServerApplication and virtual net device for tunneling
-  m_tunMecDevice->SetSendCallback (MakeCallback (&MecServerApplication::RecvFromTunDevice, m_mecServerApp));
-
-
-  // create a point to point link between the new eNB and the MEC with
-  // the corresponding new NetDevices on each side  
-  NodeContainer MecNodes;
-  MecNodes.Add (m_mec);
-  MecNodes.Add (enb);
-  PointToPointHelper p2p;
-  p2p.SetDeviceAttribute ("DataRate", DataRateValue (m_s1uLinkDataRate));//TODO
-  p2p.SetDeviceAttribute ("Mtu", UintegerValue (m_s1uLinkMtu));//TODO
-  p2p.SetChannelAttribute ("Delay", TimeValue (m_s1uLinkDelay));//TODO  
-  NetDeviceContainer mecDevices = p2p.Install (enb, m_mec);
-  NS_LOG_LOGIC ("number of Ipv4 ifaces of the eNB after installing p2p MEC dev: " << enb->GetObject<Ipv4> ()->GetNInterfaces ());  
-  Ptr<NetDevice> enbMecDev = mecDevices.Get (0);
-  Ptr<NetDevice> MecDev = mecDevices.Get (1);
-  m_s1uIpv4AddressHelper.NewNetwork ();
-  Ipv4InterfaceContainer mecIpIfaces = m_s1uIpv4AddressHelper.Assign (mecDevices);
-  NS_LOG_LOGIC ("number of Ipv4 ifaces of the eNB after assigning Ipv4 addr to MEC dev: " << enb->GetObject<Ipv4> ()->GetNInterfaces ());
-  
-  Ipv4Address enbMecAddress = mecIpIfaces.GetAddress (0);
-  Ipv4Address MecAddress = mecIpIfaces.GetAddress (1);
-  m_mecAddr = MecAddress;
-  NS_LOG_LOGIC( "MecAdress = " << MecAddress); //
-  NS_LOG_LOGIC( "eNB addr for MEC: " << enbMecAddress);
-
-  m_mecServerApp->SetEnbAddr(enbMecAddress);
-  
-  // create MEC socket for the eNB
-  Ptr<Socket> enbMecSocket = Socket::CreateSocket (enb, TypeId::LookupByName ("ns3::UdpSocketFactory"));
-  ret_val = enbMecSocket->Bind (InetSocketAddress (enbMecAddress, m_gtpMecPort));
-  NS_ASSERT (ret_val == 0);
-  NS_LOG_LOGIC ("enbMecAddr, m_gtpMecPort: " << enbMecAddress <<", " << m_gtpMecPort);
-  
-  enbApp->SetMecPort(m_gtpMecPort);
-  enbApp->SetMecAddr(MecAddress);
-  enbApp->SetMecSocket(enbMecSocket);
+//  m_mec = CreateObject<Node> ();
+//  internet.Install (m_mec);
+//
+//  // create MEC socket on MEC server node
+//  Ptr<Socket> mecSocket = Socket::CreateSocket (m_mec, TypeId::LookupByName ("ns3::UdpSocketFactory"));
+//  int ret_val = mecSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), m_gtpMecPort));
+//  NS_ASSERT (retval == 0);
+//  NS_LOG_INFO("m_gtpMecPort on MEC server: " << m_gtpMecPort);
+//
+//  // create TUN device implementing tunneling of user data over GTP-U/UDP/IP
+//  m_tunMecDevice = CreateObject<VirtualNetDevice> ();
+//  // allow jumbo packets
+//  m_tunMecDevice->SetAttribute ("Mtu", UintegerValue (30000));
+//
+//  // yes we need this
+//  m_tunMecDevice->SetAddress (Mac48Address::Allocate ());
+//
+//  m_mec->AddDevice (m_tunMecDevice);
+//  NetDeviceContainer tunMecDeviceContainer;
+//  tunMecDeviceContainer.Add (m_tunMecDevice);
+//
+//  // the TUN device is on the same subnet as the UEs, so when a packet
+//  // addressed to an UE arrives at the WAN interface of
+//  // the MEC it will be forwarded to the TUN device.
+//  Ipv4InterfaceContainer tunMecDeviceIpv4IfContainer = m_ueAddressHelper.Assign (tunMecDeviceContainer);
+//
+//  // create MecServerApplication on MEC server node
+//  m_mecServerApp = CreateObject<MecServerApplication> (m_tunMecDevice, mecSocket);
+//  m_mec->AddApplication (m_mecServerApp);
+//
+//  // connect MecServerApplication and virtual net device for tunneling
+//  m_tunMecDevice->SetSendCallback (MakeCallback (&MecServerApplication::RecvFromTunDevice, m_mecServerApp));
+//
+//
+//  // create a point to point link between the new eNB and the MEC with
+//  // the corresponding new NetDevices on each side
+//  NodeContainer MecNodes;
+//  MecNodes.Add (m_mec);
+//  MecNodes.Add (enb);
+//  PointToPointHelper p2p;
+//  p2p.SetDeviceAttribute ("DataRate", DataRateValue (m_s1uLinkDataRate));//TODO
+//  p2p.SetDeviceAttribute ("Mtu", UintegerValue (m_s1uLinkMtu));//TODO
+//  p2p.SetChannelAttribute ("Delay", TimeValue (m_s1uLinkDelay));//TODO
+//  NetDeviceContainer mecDevices = p2p.Install (enb, m_mec);
+//  NS_LOG_LOGIC ("number of Ipv4 ifaces of the eNB after installing p2p MEC dev: " << enb->GetObject<Ipv4> ()->GetNInterfaces ());
+//  Ptr<NetDevice> enbMecDev = mecDevices.Get (0);
+//  Ptr<NetDevice> MecDev = mecDevices.Get (1);
+//  m_s1uIpv4AddressHelper.NewNetwork ();
+//  Ipv4InterfaceContainer mecIpIfaces = m_s1uIpv4AddressHelper.Assign (mecDevices);
+//  NS_LOG_LOGIC ("number of Ipv4 ifaces of the eNB after assigning Ipv4 addr to MEC dev: " << enb->GetObject<Ipv4> ()->GetNInterfaces ());
+//
+//  Ipv4Address enbMecAddress = mecIpIfaces.GetAddress (0);
+//  Ipv4Address MecAddress = mecIpIfaces.GetAddress (1);
+//  m_mecAddr = MecAddress;
+//  NS_LOG_LOGIC( "MecAdress = " << MecAddress); //
+//  NS_LOG_LOGIC( "eNB addr for MEC: " << enbMecAddress);
+//
+//  m_mecServerApp->SetEnbAddr(enbMecAddress);
+//
+//  // create MEC socket for the eNB
+//  Ptr<Socket> enbMecSocket = Socket::CreateSocket (enb, TypeId::LookupByName ("ns3::UdpSocketFactory"));
+//  ret_val = enbMecSocket->Bind (InetSocketAddress (enbMecAddress, m_gtpMecPort));
+//  NS_ASSERT (ret_val == 0);
+//  NS_LOG_LOGIC ("enbMecAddr, m_gtpMecPort: " << enbMecAddress <<", " << m_gtpMecPort);
+//
+//  enbApp->SetMecPort(m_gtpMecPort);
+//  enbApp->SetMecAddr(MecAddress);
+//  enbApp->SetMecSocket(enbMecSocket);
  
 }
 

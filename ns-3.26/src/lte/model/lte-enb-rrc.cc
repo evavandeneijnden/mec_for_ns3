@@ -1630,6 +1630,7 @@ LteEnbRrc::GetUeManager (uint16_t rnti)
 
 std::map<uint16_t, Ptr<UeManager>>
 LteEnbRrc::GetUeMap(){
+  NS_LOG_DEBUG("Map size: " << m_ueMap.size());
   return m_ueMap;
 }
 

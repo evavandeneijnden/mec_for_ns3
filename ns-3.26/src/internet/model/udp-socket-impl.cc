@@ -233,6 +233,7 @@ UdpSocketImpl::Bind (void)
 {
   NS_LOG_FUNCTION_NOARGS ();
   m_endPoint = m_udp->Allocate ();
+  NS_LOG_DEBUG("Socket bind: " << this << ", " << m_endPoint->GetLocalAddress());
   return FinishBind ();
 }
 
@@ -378,6 +379,7 @@ UdpSocketImpl::Connect (const Address & address)
       SetIpTos (transport.GetTos ());
       m_connected = true;
       NotifyConnectionSucceeded ();
+      NS_LOG_DEBUG("Socket " << this << " on node " << this->GetNode()->GetId() << " connected to address " << transport.GetIpv4());
     }
   else if (Inet6SocketAddress::IsMatchingType(address) == true)
     {
@@ -828,6 +830,7 @@ Ptr<Packet>
 UdpSocketImpl::Recv (uint32_t maxSize, uint32_t flags)
 {
   NS_LOG_FUNCTION (this << maxSize << flags);
+  NS_LOG_DEBUG("Received socket " << this << " on node " << this->GetNode()->GetId());
 
   Address fromAddress;
   Ptr<Packet> packet = RecvFrom (maxSize, flags, fromAddress);

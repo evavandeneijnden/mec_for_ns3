@@ -201,6 +201,7 @@ namespace ns3 {
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
+//            NS_LOG_DEBUG("FOUND SERVER: " << ipv4);
             m_allServers.push_back(InetSocketAddress(ipv4,1001));
 
 
@@ -211,7 +212,8 @@ namespace ns3 {
         {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             m_orcSocket = Socket::CreateSocket (GetNode (), tid);
-            m_orcSocket->Bind ();
+            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_orcPort);
+            m_orcSocket->Bind (local);
             m_orcSocket->Connect (InetSocketAddress(m_orcIp, m_orcPort));
         }
         m_orcSocket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
@@ -222,9 +224,13 @@ namespace ns3 {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             Ptr<Socket> tempSocket;
             tempSocket = Socket::CreateSocket (GetNode (), tid);
+//            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_mecPort); // TODO Remove (unneeded now)
+            //tempSocket->Bind (local);
             tempSocket->Bind ();
-            //TODO check that the below returns the correct type etc.
+            // TODO check that the below returns the correct type etc.
             InetSocketAddress inet = (*it);
+//            NS_LOG_DEBUG("SETTING UP");
+//            NS_LOG_DEBUG("CONNECTING " << local.GetIpv4() << " TO " << inet.GetIpv4());
             tempSocket->Connect (inet);
             tempSocket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
             tempSocket->SetAllowBroadcast (true);
@@ -429,7 +435,7 @@ namespace ns3 {
                 ++m_sent;
 
                 if (m_sent < m_count) {
-                    NS_LOG_DEBUG("Ping interval: " << m_pingInterval);
+//                    NS_LOG_DEBUG("Ping interval: " << m_pingInterval);
                     m_sendPingEvent = Simulator::Schedule(MilliSeconds(m_pingInterval), &MecUeApplication::SendPing, this);
 //                    NS_LOG_DEBUG("SendServiceEvent 4: " << m_sendServiceEvent.GetUid());
                 }

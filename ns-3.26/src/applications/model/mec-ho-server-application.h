@@ -95,6 +95,8 @@ namespace ns3 {
         Ptr<Packet> m_packet;
         Ipv4Address m_newAddress;
         int m_newPort;
+        int m_mecPort;
+        int m_uePort;
         int m_packetSize;
         uint32_t m_cellId;
 
@@ -111,6 +113,8 @@ namespace ns3 {
         Time noSendUntil;
         std::string m_serverString;
         std::vector<InetSocketAddress> m_allServers;
+        std::string m_ueString;
+        std::vector<InetSocketAddress> m_allUes;
         Ptr<Socket> m_echoSocket;
         std::set<InetSocketAddress> myClients;
     };

@@ -64,6 +64,18 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                                StringValue("x"),
                                MakeStringAccessor (&MecHoServerApplication::m_serverString),
                                MakeStringChecker())
+                .AddAttribute ("MecPort", "Port number for MEC sockets",
+                               UintegerValue(),
+                               MakeUintegerAccessor (&MecHoServerApplication::m_mecPort),
+                               MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("AllUes", "Container of all UE addresses",
+                               StringValue("x"),
+                               MakeStringAccessor (&MecHoServerApplication::m_ueString),
+                               MakeStringChecker())
+                .AddAttribute ("UePort", "Port number for Ue sockets",
+                               UintegerValue(),
+                               MakeUintegerAccessor (&MecHoServerApplication::m_uePort),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecHoServerApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -104,7 +116,30 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
-            m_allServers.push_back(InetSocketAddress(ipv4, 1001));
+            m_allServers.push_back(InetSocketAddress(ipv4, m_mecPort));
+        }
+
+        //Make allUes list
+        std::vector<std::string> args2;
+        std::string tempString2;
+        for (int i = 0 ; i < int(m_ueString.length()); i++){
+            char c = m_ueString[i];
+            if(c == '/'){
+                args2.push_back(tempString2);
+                tempString2 = "";
+            }
+            else{
+                tempString2.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args2.size()) ; i++){
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allUes.push_back(InetSocketAddress(ipv4, m_uePort));
         }
     }
 
@@ -132,7 +167,8 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             m_orcSocket = Socket::CreateSocket (GetNode (), tid);
-            m_orcSocket->Bind ();
+            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_orcPort);
+            m_orcSocket->Bind (local);
             m_orcSocket->Connect (InetSocketAddress(m_orcAddress, m_orcPort));
         }
         m_orcSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
@@ -144,7 +180,8 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             Ptr<Socket> tempSocket;
             tempSocket = Socket::CreateSocket (GetNode (), tid);
-            tempSocket->Bind ();
+            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_mecPort);
+            tempSocket->Bind (local);
             //TODO check that the below returns the correct type etc.
             InetSocketAddress inet = (*it);
             tempSocket->Connect (inet);
@@ -152,6 +189,22 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             tempSocket->SetAllowBroadcast (true);
             std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
             serverSocketMap.insert(newPair);
+        }
+
+        //Make socket for each client
+        for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
+            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+            Ptr<Socket> tempSocket;
+            tempSocket = Socket::CreateSocket (GetNode (), tid);
+            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_mecPort); //m_uePort);
+            tempSocket->Bind (local);
+            //TODO check that the below returns the correct type etc.
+            InetSocketAddress inet = (*it);
+            tempSocket->Connect (inet);
+            tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
+            tempSocket->SetAllowBroadcast (true);
+            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
+            clientSocketMap.insert(newPair);
         }
 
     }

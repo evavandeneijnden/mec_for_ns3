@@ -41,96 +41,181 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
+double simTime = 2.2;
+double interPacketInterval = 100;
+int numberOfUes = 2;
+int numberOfEnbs = 3; //Hardcoded to 3 at the moment!
+double enb_distance = 4000.0;
+int numberOfMecs = 4;
+double mec_distance = 3000.0;
+double numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
+std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
 
-int
-main (int argc, char *argv[])
-{
+uint32_t ORC_PACKET_SIZE = 512;
+uint32_t MEC_PACKET_SIZE = 512;
+uint32_t MEC_UPDATE_INTERVAL = 1000;
+uint32_t UE_PACKET_SIZE = 1024;
+uint32_t PING_INTERVAL = 100;
+uint32_t SERVICE_INTERVAL = 10;
 
-    double simTime = 5.0;
-    double interPacketInterval = 100;
-    int numberOfUes = 2;
-    int numberOfEnbs = 3; //Hardcoded to 3 at the moment!
-    double enb_distance = 4000.0;
-    int numberOfMecs = 4;
-    double mec_distance = 3000.0;
-    double numberOfRemoteHosts = numberOfMecs +1; //One extra for the orchestrator
-    std::map<Ptr<Node>, Ptr<Node>> mecEnbMap;
 
-    uint32_t ORC_PACKET_SIZE = 512;
-    uint32_t MEC_PACKET_SIZE = 512;
-    uint32_t MEC_UPDATE_INTERVAL = 1000;
-    uint32_t UE_PACKET_SIZE = 1024;
-    uint32_t PING_INTERVAL = 100;
-    uint32_t SERVICE_INTERVAL = 10;
+//TODO refactor so that these do not have to be global variables
+InternetStackHelper internet;
+PointToPointHelper p2ph;
+NodeContainer remoteHostContainer;
+NodeContainer routerNode;
+ApplicationContainer mecApps;
+ApplicationContainer orcApp;
+ApplicationContainer ueApps;
+NetDeviceContainer ueLteDevs;
+NetDeviceContainer enbLteDevs;
+Ptr <LteHelper> lteHelper;
+Ptr <PointToPointEpcHelper> epcHelper;
+Ptr <Node> pgw;
+Ipv4StaticRoutingHelper ipv4RoutingHelper;
+std::vector<Ipv4Address> remoteAddresses;
+NodeContainer ueNodes;
+NodeContainer enbNodes;
+std::map<Ptr<Node>, uint64_t> ueImsiMap;
+std::vector<Ipv4Address> ueAddresses;
+Ptr<Node> router;
 
-    // Command line arguments
-    CommandLine cmd;
-    cmd.AddValue("numberOfMecs", "Number of MECs in the simulation", numberOfMecs);
-    cmd.AddValue("simTime", "Total duration of the simulation [s])", simTime);
-    cmd.AddValue("interPacketInterval", "Inter packet interval [ms])", interPacketInterval);
-    cmd.Parse(argc, argv);
+void CreateRemoteHosts() {
+//    NS_LOG_DEBUG("Create remote hosts");
 
-    Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
-    Ptr<PointToPointEpcHelper>  epcHelper = CreateObject<PointToPointEpcHelper> ();
-    lteHelper->SetEpcHelper (epcHelper);
-
-    ConfigStore inputConfig;
-    inputConfig.ConfigureDefaults();
-
-    // parse again so you can override default values from the command line
-    cmd.Parse(argc, argv);
-
-    Ptr<Node> pgw = epcHelper->GetPgwNode ();
-//    NS_LOG_DEBUG("PGW is node " << pgw->GetId());
-
-    // Create RemoteHosts
-    NodeContainer remoteHostContainer;
-    remoteHostContainer.Create (numberOfRemoteHosts);
-    InternetStackHelper internet;
-    internet.Install (remoteHostContainer);
-
-    // Create the Internet
-    PointToPointHelper p2ph;
     p2ph.SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("100Gb/s")));
     p2ph.SetDeviceAttribute ("Mtu", UintegerValue (1500));
     p2ph.SetChannelAttribute ("Delay", TimeValue (Seconds (0.000)));
+
+    //install IP stack on router and add link to pgw
+    Ptr<Node> router = routerNode.Get(0);
+    NS_LOG_DEBUG("Node " << pgw->GetId() << " is PGW");
+    NS_LOG_DEBUG("Node " << router->GetId() << " is ROUTER");
+    internet.Install(router);
+
+    NetDeviceContainer routerDevContainer = p2ph.Install(pgw, router);
+
+
+    //Create remote hosts and install IP stack on them
+    remoteHostContainer.Create (numberOfRemoteHosts);
+    internet.Install (remoteHostContainer);
+
+
+    //Create P2P links between router and each remote host
     NetDeviceContainer internetDevices;
     NodeContainer::Iterator i;
     for (i = remoteHostContainer.Begin (); i != remoteHostContainer.End (); ++i) {
 //        NS_LOG_DEBUG("Setting up server/ORC");
-        internetDevices.Add(p2ph.Install (pgw, *i));
+        NetDeviceContainer netDeviceContainer = p2ph.Install (router, *i);
+        NetDeviceContainer::Iterator d;
+//        NS_LOG_DEBUG("New P2P group");
+//        for (d = netDeviceContainer.Begin(); d != netDeviceContainer.End(); ++d) {
+//            NS_LOG_DEBUG("CREATED NET DEVICE: " << (**d).GetAddress());
+//        }
+
+        internetDevices.Add(netDeviceContainer);
     }
+
+
     Ipv4AddressHelper ipv4h;
     ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
     Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
-    // interface 0 is localhost, 1 is the p2p device
-//    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
-    std::vector<Ipv4Address> remoteAddresses;
-    for(uint16_t i = 1; i<internetIpIfaces.GetN(); i+=2){
-        remoteAddresses.push_back(internetIpIfaces.GetAddress(i));
-    }
-    Ipv4StaticRoutingHelper ipv4RoutingHelper;
-    NodeContainer::Iterator j;
-    for (j = remoteHostContainer.Begin (); j != remoteHostContainer.End (); ++j) {
-//        NS_LOG_DEBUG("Setting IP addresses for server/ORC");
-        Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting ((*j)->GetObject<Ipv4> ());
-        remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+    Ipv4InterfaceContainer routerIpIfaces = ipv4h.Assign (routerDevContainer);
+
+
+    unsigned int t = 0;
+    NS_LOG_DEBUG("FOR PGW");
+    while(t < pgw->GetNDevices()) {
+        Ptr<NetDevice> netDevice = pgw->GetDevice(t);
+        NS_LOG_DEBUG("FOUND NETDEVICE:" << " ADDRESS " << (*netDevice).GetAddress());
+        t++;
     }
 
-    //Logging for who-is-who detection
-    NodeContainer::Iterator k;
-    for (k = remoteHostContainer.Begin (); k != remoteHostContainer.End (); ++k) {
-        Ptr<Ipv4> ipv4 = (*k)->GetObject<Ipv4>();
+    Ptr<Ipv4> pgw_ipvs = pgw->GetObject<Ipv4>();
+    unsigned int pgw_interface = 0;
+    while(pgw_interface < pgw_ipvs->GetNInterfaces()) {
+        unsigned int n_address = pgw_ipvs->GetNAddresses(pgw_interface);
+        NS_LOG_DEBUG("INTERFACE " << pgw_interface << " HAS " << n_address << " ADDRESSES ");
+        unsigned int address_i = 0;
+        while(address_i < n_address) {
+            NS_LOG_DEBUG("HAS IP ADDRESS: " << pgw_ipvs->GetAddress(pgw_interface, address_i));
+            address_i++;
+        }
+        pgw_interface++;
+    }
+
+//    NS_LOG_DEBUG("_______________");
+//
+//    unsigned int e = 0;
+//    NS_LOG_DEBUG("FOR ROUTER");
+//    while(e < router->GetNDevices()) {
+//        Ptr<NetDevice> netDevice = router->GetDevice(e);
+//        NS_LOG_DEBUG("FOUND NETDEVICE:" << " ADDRESS " << (*netDevice).GetAddress());
+//        e++;
+//    }
+//
+//    Ptr<Ipv4> router_ipvs = router->GetObject<Ipv4>();
+//    unsigned int router_interface = 0;
+//    while(router_interface < router_ipvs->GetNInterfaces()) {
+//        unsigned int n_address = router_ipvs->GetNAddresses(router_interface);
+//        NS_LOG_DEBUG("INTERFACE " << router_interface << " HAS " << n_address << " ADDRESSES ");
+//        unsigned int address_i = 0;
+//        while(address_i < n_address) {
+//            NS_LOG_DEBUG("HAS IP ADDRESS: " << router_ipvs->GetAddress(router_interface, address_i));
+//            address_i++;
+//        }
+//        router_interface++;
+//    }
+
+//    NS_LOG_DEBUG("_______________");
+    // interface 0 is localhost, 1 is the p2p device
+//    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
+
+    //Set PGW routes
+    Ptr<Ipv4StaticRouting> pgwStaticRouting = ipv4RoutingHelper.GetStaticRouting (pgw->GetObject<Ipv4> ());
+    pgwStaticRouting->AddNetworkRouteTo (Ipv4Address ("1.0.0.0"), Ipv4Mask ("255.0.0.0"), 2);
+    pgwStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+
+    //Make vector of remote addresses (skip every second one, because this is our router)
+    //Add route from router to each server
+    Ptr<Ipv4StaticRouting> routerStaticRouting = ipv4RoutingHelper.GetStaticRouting (router->GetObject<Ipv4> ());
+    int if_number = 1;
+    for(uint16_t i = 1; i<internetIpIfaces.GetN(); i+=2){
+        Ipv4Address address = internetIpIfaces.GetAddress(i);
+//        NS_LOG_DEBUG("FOUND INET IFACE: " << address);
+        remoteAddresses.push_back(address);
+        //Add route from router to remoteHost
+//        NS_LOG_DEBUG("Address " << address << " can be reached trough interface " << if_number);
+        routerStaticRouting->AddHostRouteTo(address,if_number);
+        if_number++;
+    }
+    //Route towards LTE --> send to PGW
+    routerStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 6);
+
+    //Routes from servers to other servers
+    NodeContainer::Iterator j;
+//    int n = 1;
+    for (j = remoteHostContainer.Begin (); j != remoteHostContainer.End (); ++j) {
+        Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting ((*j)->GetObject<Ipv4> ());
+        remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+//        std::string addrString = "1.0.0." + n.str();
+//        NS_LOG_DEBUG("addr string: " << addrString);
+        remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address ("1.0.0.0"), Ipv4Mask ("255.0.0.0"),1);
+//        n+=2;
+    }
+
+//    //Logging for who-is-who detection
+//    NodeContainer::Iterator k;
+//    for (k = remoteHostContainer.Begin (); k != remoteHostContainer.End (); ++k) {
+//        Ptr<Ipv4> ipv4 = (*k)->GetObject<Ipv4>();
 //        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
 //        Ipv4Address address = iaddr.GetLocal();
 //        NS_LOG_DEBUG("Node (ORC/SERVER) " << (*k)->GetId() << ",address: " << address);
-    }
+//    }
+//    NS_LOG_DEBUG("Test 9");
+}
 
-    NodeContainer ueNodes;
-    NodeContainer enbNodes;
-    enbNodes.Create(numberOfEnbs);
-    ueNodes.Create(numberOfUes);
-
+void InstallMobilityModels(){
     // Install Mobility Model
     Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfEnbs; i++)
@@ -166,12 +251,12 @@ main (int argc, char *argv[])
             mm->SetVelocity({-27.8, 0, 0});
         }
     }
+}
 
+void InstallLteDevices(){
     // Install LTE Devices to the nodes
 
-    NetDeviceContainer enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
-    NetDeviceContainer ueLteDevs;
-    std::map<Ptr<Node>, uint64_t> ueImsiMap;
+    enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
     for (uint32_t i = 0; i < ueNodes.GetN(); i++){
         Ptr<Node> ue = ueNodes.Get(i);
         std::pair<Ptr<NetDevice>, uint64_t> installResult = lteHelper->InstallSingleUeDeviceMec(ue);
@@ -180,7 +265,6 @@ main (int argc, char *argv[])
         ueImsiMap.insert(std::pair<Ptr<Node>, uint64_t>(ue,imsi));
         ueLteDevs.Add(netDevice);
     }
-
 
     // Link each MEC to an eNB
     for (int i = 0; i<numberOfEnbs; i++){
@@ -195,7 +279,10 @@ main (int argc, char *argv[])
         Ptr<Node> value = enbNodes.Get(index);
         mecEnbMap[node] = value;
     }
+}
 
+
+void InstallUeNodes(){
     // Install the IP stack on the UEs
     internet.Install (ueNodes);
     Ipv4InterfaceContainer ueIpIface;
@@ -208,23 +295,43 @@ main (int argc, char *argv[])
         Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
         ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
     }
-
     // Attach one UE per eNodeB
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
-        lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(0));
+        Ptr<NetDevice> ueDev = ueLteDevs.Get(i);
+        Ptr<NetDevice> enbDev = enbLteDevs.Get(0);
+        lteHelper->Attach (ueDev, enbDev);
         // side effect: the default EPS bearer will be activated
     }
 
     NodeContainer::Iterator l;
     for (l = enbNodes.Begin (); l != enbNodes.End (); ++l) {
-        Ptr<Ipv4> ipv4 = (*l)->GetObject<Ipv4>();
+//        Ptr<Ipv4> ipv4 = (*l)->GetObject<Ipv4>();
 //        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
 //        Ipv4Address address = iaddr.GetLocal();
 //        NS_LOG_DEBUG("Node (ENB) " << (*l)->GetId() << ", address: " << address);
 
+//        NS_LOG_DEBUG("FOR ENB (ID: " << (*l)->GetId() << ")");
+//        unsigned int t = 0;
+//        while(t < (*l)->GetNDevices()) {
+//            Ptr<NetDevice> netDevice = (*l)->GetDevice(t);
+//            NS_LOG_DEBUG("FOUND NETDEVICE:" << " ADDRESS " << (*netDevice).GetAddress());
+//            t++;
+//        }
+//
+//        Ptr<Ipv4> pgw_ipvs = (*l)->GetObject<Ipv4>();
+//        unsigned int pgw_interface = 0;
+//        while(pgw_interface < pgw_ipvs->GetNInterfaces()) {
+//            unsigned int n_address = pgw_ipvs->GetNAddresses(pgw_interface);
+//            NS_LOG_DEBUG("INTERFACE " << pgw_interface << " HAS " << n_address << " ADDRESSES ");
+//            unsigned int address_i = 0;
+//            while(address_i < n_address) {
+//                NS_LOG_DEBUG("HAS IP ADDRESS: " << pgw_ipvs->GetAddress(pgw_interface, address_i));
+//                address_i++;
+//            }
+//            pgw_interface++;
+//        }
     }
-    std::vector<Ipv4Address> ueAddresses;
     NodeContainer::Iterator m;
     for (m = ueNodes.Begin (); m != ueNodes.End (); ++m) {
         Ptr<Ipv4> ipv4 = (*m)->GetObject<Ipv4>();
@@ -233,13 +340,15 @@ main (int argc, char *argv[])
         ueAddresses.push_back(address);
 //        NS_LOG_DEBUG("Node (UE) " << (*m)->GetId() << ", address: " << address);
     }
+}
 
+void InstallApplications(){
     // Install and start applications on UEs and remote hosts
 
     //UE applications: pass along argument for ORC inetsocketaddress; always first in remoteHost list?
-    ApplicationContainer mecApps;
-    ApplicationContainer orcApp;
-    ApplicationContainer ueApps;
+//        ApplicationContainer mecApps;
+//        ApplicationContainer orcApp;
+//        ApplicationContainer ueApps;
 
 
     //Install MEC applications
@@ -287,6 +396,7 @@ main (int argc, char *argv[])
     m_factory.Set ("AllServers", StringValue(mecString));
     m_factory.Set ("AllUes", StringValue(ueString));
     m_factory.Set ("UePort", UintegerValue(1002));
+    m_factory.Set ("MecPort", UintegerValue(1001));
 
     Ptr<Application> app = m_factory.Create<Application> ();
     orcNode->AddApplication (app);
@@ -294,7 +404,7 @@ main (int argc, char *argv[])
 //    NS_LOG_DEBUG("Application (type ORC): " << app << " on node " << orcNode->GetId());
 
 
-//  Install MEC applications
+    //  Install MEC applications
     for (int i = 1; i < int(remoteHostContainer.GetN()); ++i){
         Ptr<Node> node = remoteHostContainer.Get(i);
         Ptr<Node> enbNode = mecEnbMap[node];
@@ -310,6 +420,9 @@ main (int argc, char *argv[])
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         m_factory.Set ("CellID", UintegerValue(cellId) );
         m_factory.Set ("AllServers", StringValue(mecString));
+        m_factory.Set("MecPort", UintegerValue(1001));
+        m_factory.Set("AllUes", StringValue(ueString));
+        m_factory.Set("UePort", UintegerValue(1002));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
@@ -318,6 +431,9 @@ main (int argc, char *argv[])
     }
 
     //Install UE applications
+    for (int i = 0; i < int(remoteAddresses.size()); ++i){
+//        NS_LOG_DEBUG("remote adress: " << remoteAddresses[i]);
+    }
     for (int i = 0; i < int(ueNodes.GetN()); ++i){
         Ptr<Node> node = ueNodes.Get(i);
         uint64_t ueImsi = ueImsiMap.find(node)->second;
@@ -331,6 +447,7 @@ main (int argc, char *argv[])
         m_factory.Set("MecPort", UintegerValue(1001));
         m_factory.Set ("OrcIp", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
+        //TODO give the below argument the right value, currently is wrong
         m_factory.Set("Local", Ipv4AddressValue(remoteAddresses[i]));
         m_factory.Set ("AllServers", StringValue(mecString));
         m_factory.Set ("Enb0", PointerValue(enbLteDevs.Get(0)));
@@ -346,15 +463,17 @@ main (int argc, char *argv[])
         ueApps.Add(ueApps);
 //        NS_LOG_DEBUG("Application (type UE): " << app << " on node " << node->GetId());
     }
+}
 
+int StartSimulation(){
     orcApp.Start(Simulator::Now());
-    mecApps.Start (Simulator::Now() + Seconds (1));
-    ueApps.Start (Simulator::Now() + Seconds (2));
+    mecApps.Start (Simulator::Now());
+    ueApps.Start (Simulator::Now());
 
 
     lteHelper->EnableTraces ();
 //     Uncomment to enable PCAP tracing
-//    p2ph.EnablePcapAll("lena-epc-first");
+    p2ph.EnablePcapAll("lena-epc-first");
 
     Simulator::Stop(Seconds(simTime));
     Simulator::Run();
@@ -364,6 +483,38 @@ main (int argc, char *argv[])
 
     Simulator::Destroy();
     return 0;
+}
 
+
+int
+main (int argc, char *argv[]) {
+    // TODO Servers cannot talk to each other as they are P2P to PGW and not on the same subnet?
+
+    lteHelper = CreateObject<LteHelper>();
+    epcHelper = CreateObject<PointToPointEpcHelper>();
+    lteHelper->SetEpcHelper(epcHelper);
+
+    pgw = epcHelper->GetPgwNode();
+
+    routerNode.Create(1);
+    CreateRemoteHosts();
+
+
+    enbNodes.Create(numberOfEnbs);
+    ueNodes.Create(numberOfUes);
+
+
+    InstallMobilityModels();
+
+    InstallLteDevices();
+
+    InstallUeNodes();
+
+    InstallApplications();
+
+    return StartSimulation();
+
+
+    //END MAIN
 }
 

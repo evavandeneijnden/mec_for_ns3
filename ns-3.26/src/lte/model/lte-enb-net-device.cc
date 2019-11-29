@@ -202,6 +202,7 @@ LteEnbNetDevice::GetPhy () const
 Ptr<LteEnbRrc>
 LteEnbNetDevice::GetRrc () const
 {
+  NS_LOG_FUNCTION(this);
   return m_rrc;
 }
 
@@ -366,7 +367,8 @@ LteEnbNetDevice::UpdateConfig (void)
 
       NS_LOG_LOGIC (this << " Updating SIB1 of cell " << m_cellId
                          << " with CSG ID " << m_csgId
-                         << " and CSG indication " << m_csgIndication);
+                         << " and CSG indication " << m_csgIndication
+                         << "and RRC " << m_rrc);
       m_rrc->SetCsgId (m_csgId, m_csgIndication);
     }
   else
