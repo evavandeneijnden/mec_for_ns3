@@ -87,7 +87,6 @@ namespace ns3 {
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;
 
-
         //Added
         uint8_t *m_data_ue;
         uint8_t *m_data_mec;
@@ -105,9 +104,6 @@ namespace ns3 {
         uint32_t m_mecPort;
         std::vector<InetSocketAddress> m_allServers;
         std::vector<InetSocketAddress> m_allUes;
-
-        std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
-        std::map<InetSocketAddress, Ptr<Socket>> ueSocketMap;
 
     };
 

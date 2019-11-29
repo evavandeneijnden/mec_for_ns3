@@ -29,6 +29,8 @@
 #include "ns3/applications-module.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/config-store.h"
+#include "ns3/traffic-control-helper.h"
+#include "ns3/traffic-control-layer.h"
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -62,157 +64,186 @@ uint32_t SERVICE_INTERVAL = 10;
 //TODO refactor so that these do not have to be global variables
 InternetStackHelper internet;
 PointToPointHelper p2ph;
-NodeContainer remoteHostContainer;
-NodeContainer routerNode;
 ApplicationContainer mecApps;
 ApplicationContainer orcApp;
 ApplicationContainer ueApps;
 NetDeviceContainer ueLteDevs;
 NetDeviceContainer enbLteDevs;
+NodeContainer remoteHostContainer;
 Ptr <LteHelper> lteHelper;
 Ptr <PointToPointEpcHelper> epcHelper;
-Ptr <Node> pgw;
 Ipv4StaticRoutingHelper ipv4RoutingHelper;
 std::vector<Ipv4Address> remoteAddresses;
 NodeContainer ueNodes;
 NodeContainer enbNodes;
 std::map<Ptr<Node>, uint64_t> ueImsiMap;
 std::vector<Ipv4Address> ueAddresses;
-Ptr<Node> router;
+
+void printNodeConfiguration(std::string name, Ptr<Node> node) {
+    NS_LOG_DEBUG("________FOR " << name << "(" << node->GetId() << ")___________");
+
+    NS_LOG_DEBUG("" << name << " MAC ADDRESSES________");
+    for(unsigned int i_device = 0; i_device < node->GetNDevices(); i_device++) {
+        Ptr<NetDevice> netDevice = node->GetDevice(i_device);
+        NS_LOG_DEBUG("INTERFACE " << i_device << ":" << " MAC-ADDRESS " << (*netDevice).GetAddress());
+    }
+
+    NS_LOG_DEBUG("" << name <<" IP ADDRESSES________");
+    Ptr<Ipv4> node_ipvs = node->GetObject<Ipv4>();
+
+    for(unsigned int node_interface = 0; node_interface < node_ipvs->GetNInterfaces(); node_interface++) {
+        unsigned int n_address = node_ipvs->GetNAddresses(node_interface);
+        NS_LOG_DEBUG("INTERFACE " << node_interface << " HAS " << n_address << " ADDRESSES");
+        for(unsigned int address_i = 0; address_i < n_address; address_i++) {
+            NS_LOG_DEBUG("    IP: " << node_ipvs->GetAddress(node_interface, address_i));
+        }
+    }
+
+    NS_LOG_DEBUG("node ROUTES________");
+    Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper>(&std::cout);
+    Ipv4GlobalRoutingHelper ipv4RoutingHelper;
+    ipv4RoutingHelper.PrintRoutingTableAt(Seconds(0), node, routingStream);
+}
+
+Ipv4InterfaceAddress AssignIpv4Address (Ipv4Address ipv4Address, Ipv4Mask mask, Ptr<NetDevice> device) {
+    Ptr<Node> node = device->GetNode ();
+    NS_ASSERT_MSG (node, "Ipv4AddressHelper::Assign(): NetDevice is not not associated "
+                         "with any node -> fail");
+
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+    NS_ASSERT_MSG (ipv4, "Ipv4AddressHelper::Assign(): NetDevice is associated"
+                         " with a node without IPv4 stack installed -> fail "
+                         "(maybe need to use InternetStackHelper?)");
+
+    int32_t interface = ipv4->GetInterfaceForDevice(device);
+    if (interface == -1)
+    {
+        interface = ipv4->AddInterface(device);
+    }
+    NS_ASSERT_MSG (interface >= 0, "Ipv4AddressHelper::Assign(): "
+                                   "Interface index not found");
+
+    Ipv4InterfaceAddress ipv4Addr = Ipv4InterfaceAddress(ipv4Address, mask.Get());
+    ipv4->AddAddress (interface, ipv4Addr);
+    ipv4->SetMetric (interface, 1);
+    ipv4->SetUp (interface);
+
+    // Install the default traffic control configuration if the traffic
+    // control layer has been aggregated, if this is not
+    // a loopback interface, and there is no queue disc installed already
+    Ptr<TrafficControlLayer> tc = node->GetObject<TrafficControlLayer> ();
+    if (tc && DynamicCast<LoopbackNetDevice> (device) == 0 && tc->GetRootQueueDiscOnDevice (device) == 0)  {
+        TrafficControlHelper tcHelper = TrafficControlHelper::Default ();
+        tcHelper.Install (device);
+    }
+    return ipv4Addr;
+}
 
 void CreateRemoteHosts() {
-//    NS_LOG_DEBUG("Create remote hosts");
-
     p2ph.SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("100Gb/s")));
     p2ph.SetDeviceAttribute ("Mtu", UintegerValue (1500));
     p2ph.SetChannelAttribute ("Delay", TimeValue (Seconds (0.000)));
 
-    //install IP stack on router and add link to pgw
-    Ptr<Node> router = routerNode.Get(0);
-    NS_LOG_DEBUG("Node " << pgw->GetId() << " is PGW");
-    NS_LOG_DEBUG("Node " << router->GetId() << " is ROUTER");
+    Ipv4AddressHelper ipv4h;
+    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
+
+    // NODES
+        //Setup PGW
+    Ptr<Node> pgw = epcHelper->GetPgwNode();
+
+        //Setup router
+
+    Ptr<Node> router = CreateObject<Node>();
     internet.Install(router);
 
-    NetDeviceContainer routerDevContainer = p2ph.Install(pgw, router);
+        //Setup remote hosts
+    std::vector<Ptr<Node>> remoteHosts;
+    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+        NS_LOG_DEBUG("Setting up server/ORC" << i_remote_host);
+        Ptr<Node> remoteHost_p = CreateObject<Node>();
+        internet.Install(remoteHost_p);
+        remoteHosts.push_back(remoteHost_p);
+    }
+
+    // LINKS
+        //Setup interfaces between pgw & router
+    NetDeviceContainer routerPGWLink = p2ph.Install(pgw, router);
+    Ptr<NetDevice> pgw_iface = routerPGWLink.Get(0);
+    Ptr<NetDevice> router_iface = routerPGWLink.Get(1);
+    AssignIpv4Address(Ipv4Address("1.0.0.11"), Ipv4Mask("255.0.0.0"), pgw_iface);
+    AssignIpv4Address(Ipv4Address("1.0.0.12"), Ipv4Mask("255.0.0.0"), router_iface);
 
 
-    //Create remote hosts and install IP stack on them
-    remoteHostContainer.Create (numberOfRemoteHosts);
-    internet.Install (remoteHostContainer);
+        //Setup interfaces between router & remote hosts
+    std::vector<std::string> remote_host_addresses = {"1.0.0.1",
+                                                      "1.0.0.3",
+                                                      "1.0.0.5",
+                                                      "1.0.0.7",
+                                                      "1.0.0.9"};
+    std::vector<std::string> router_addresses = {"1.0.0.2",
+                                                 "1.0.0.4",
+                                                 "1.0.0.6",
+                                                 "1.0.0.8",
+                                                 "1.0.0.10"};
+    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+        Ptr<Node> remote_host = remoteHosts[i_remote_host];
 
+        // Setup router & remote host interfaces
+        NetDeviceContainer netDeviceContainer = p2ph.Install(router, remote_host);
+        Ptr<NetDevice> router_iface = netDeviceContainer.Get(0);
+        Ptr<NetDevice> remote_host_iface = netDeviceContainer.Get(1);
 
-    //Create P2P links between router and each remote host
-    NetDeviceContainer internetDevices;
-    NodeContainer::Iterator i;
-    for (i = remoteHostContainer.Begin (); i != remoteHostContainer.End (); ++i) {
-//        NS_LOG_DEBUG("Setting up server/ORC");
-        NetDeviceContainer netDeviceContainer = p2ph.Install (router, *i);
-        NetDeviceContainer::Iterator d;
-//        NS_LOG_DEBUG("New P2P group");
-//        for (d = netDeviceContainer.Begin(); d != netDeviceContainer.End(); ++d) {
-//            NS_LOG_DEBUG("CREATED NET DEVICE: " << (**d).GetAddress());
-//        }
+        // Assign ipv4 address to router and remote host interfaces
+        Ipv4Address remote_host_address = Ipv4Address(remote_host_addresses[i_remote_host].c_str());
+        AssignIpv4Address(Ipv4Address(router_addresses[i_remote_host].c_str()), Ipv4Mask("255.255.0.0"), router_iface);
+        AssignIpv4Address(remote_host_address, Ipv4Mask("255.255.0.0"), remote_host_iface);
 
-        internetDevices.Add(netDeviceContainer);
+        remoteAddresses.push_back(remote_host_address);
+    }
+
+    // ROUTES
+        //Router to Remote host routes
+    Ptr<Ipv4StaticRouting> routerStaticRouting = ipv4RoutingHelper.GetStaticRouting(router->GetObject<Ipv4>());
+    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.1"), Ipv4Address("1.0.0.1"), 2);
+    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.3"), Ipv4Address("1.0.0.3"), 3);
+    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.5"), Ipv4Address("1.0.0.5"), 4);
+    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.7"), Ipv4Address("1.0.0.7"), 5);
+    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.9"), Ipv4Address("1.0.0.9"), 6);
+
+        //Router to PGW
+    routerStaticRouting->AddNetworkRouteTo(Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.255.0.0"), Ipv4Address("1.0.0.11"), 1);
+
+        //PGW routes
+    Ptr<Ipv4StaticRouting> pgwStaticRouting = ipv4RoutingHelper.GetStaticRouting(pgw->GetObject<Ipv4>());
+    pgwStaticRouting->AddNetworkRouteTo (Ipv4Address("7.0.0.0"), Ipv4Mask ("255.255.0.0"), 1);
+    pgwStaticRouting->AddNetworkRouteTo (Ipv4Address("1.0.0.0"), Ipv4Mask ("255.255.0.0"), 2);
+
+        //Routes from remote_host to network
+    unsigned int n = 0;
+    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+        Ptr<Node> remote_host = remoteHosts[i_remote_host];
+
+        Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting(remote_host->GetObject<Ipv4>());
+        std::string router_address_str = router_addresses[i_remote_host];
+        remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask ("255.255.0.0"), Ipv4Address(router_address_str.c_str()), 1);
+        remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("1.0.0.0"), Ipv4Mask ("255.255.0.0"), Ipv4Address(router_address_str.c_str()), 1);
+        n+=2;
+    }
+
+    NS_LOG_DEBUG("Show resulting configuration__________________");
+    printNodeConfiguration("ROUTER", router);
+    printNodeConfiguration("PGW", pgw);
+
+    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+        Ptr<Node> remote_host = remoteHosts[i_remote_host];
+        printNodeConfiguration("Node " + std::to_string(remote_host->GetId()), remote_host);
     }
 
 
-    Ipv4AddressHelper ipv4h;
-    ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
-    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
-    Ipv4InterfaceContainer routerIpIfaces = ipv4h.Assign (routerDevContainer);
-
-
-    unsigned int t = 0;
-    NS_LOG_DEBUG("FOR PGW");
-    while(t < pgw->GetNDevices()) {
-        Ptr<NetDevice> netDevice = pgw->GetDevice(t);
-        NS_LOG_DEBUG("FOUND NETDEVICE:" << " ADDRESS " << (*netDevice).GetAddress());
-        t++;
+    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+        Ptr<Node> remote_host = remoteHosts[i_remote_host];
+        remoteHostContainer.Add(remote_host);
     }
-
-    Ptr<Ipv4> pgw_ipvs = pgw->GetObject<Ipv4>();
-    unsigned int pgw_interface = 0;
-    while(pgw_interface < pgw_ipvs->GetNInterfaces()) {
-        unsigned int n_address = pgw_ipvs->GetNAddresses(pgw_interface);
-        NS_LOG_DEBUG("INTERFACE " << pgw_interface << " HAS " << n_address << " ADDRESSES ");
-        unsigned int address_i = 0;
-        while(address_i < n_address) {
-            NS_LOG_DEBUG("HAS IP ADDRESS: " << pgw_ipvs->GetAddress(pgw_interface, address_i));
-            address_i++;
-        }
-        pgw_interface++;
-    }
-
-//    NS_LOG_DEBUG("_______________");
-//
-//    unsigned int e = 0;
-//    NS_LOG_DEBUG("FOR ROUTER");
-//    while(e < router->GetNDevices()) {
-//        Ptr<NetDevice> netDevice = router->GetDevice(e);
-//        NS_LOG_DEBUG("FOUND NETDEVICE:" << " ADDRESS " << (*netDevice).GetAddress());
-//        e++;
-//    }
-//
-//    Ptr<Ipv4> router_ipvs = router->GetObject<Ipv4>();
-//    unsigned int router_interface = 0;
-//    while(router_interface < router_ipvs->GetNInterfaces()) {
-//        unsigned int n_address = router_ipvs->GetNAddresses(router_interface);
-//        NS_LOG_DEBUG("INTERFACE " << router_interface << " HAS " << n_address << " ADDRESSES ");
-//        unsigned int address_i = 0;
-//        while(address_i < n_address) {
-//            NS_LOG_DEBUG("HAS IP ADDRESS: " << router_ipvs->GetAddress(router_interface, address_i));
-//            address_i++;
-//        }
-//        router_interface++;
-//    }
-
-//    NS_LOG_DEBUG("_______________");
-    // interface 0 is localhost, 1 is the p2p device
-//    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
-
-    //Set PGW routes
-    Ptr<Ipv4StaticRouting> pgwStaticRouting = ipv4RoutingHelper.GetStaticRouting (pgw->GetObject<Ipv4> ());
-    pgwStaticRouting->AddNetworkRouteTo (Ipv4Address ("1.0.0.0"), Ipv4Mask ("255.0.0.0"), 2);
-    pgwStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
-
-    //Make vector of remote addresses (skip every second one, because this is our router)
-    //Add route from router to each server
-    Ptr<Ipv4StaticRouting> routerStaticRouting = ipv4RoutingHelper.GetStaticRouting (router->GetObject<Ipv4> ());
-    int if_number = 1;
-    for(uint16_t i = 1; i<internetIpIfaces.GetN(); i+=2){
-        Ipv4Address address = internetIpIfaces.GetAddress(i);
-//        NS_LOG_DEBUG("FOUND INET IFACE: " << address);
-        remoteAddresses.push_back(address);
-        //Add route from router to remoteHost
-//        NS_LOG_DEBUG("Address " << address << " can be reached trough interface " << if_number);
-        routerStaticRouting->AddHostRouteTo(address,if_number);
-        if_number++;
-    }
-    //Route towards LTE --> send to PGW
-    routerStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 6);
-
-    //Routes from servers to other servers
-    NodeContainer::Iterator j;
-//    int n = 1;
-    for (j = remoteHostContainer.Begin (); j != remoteHostContainer.End (); ++j) {
-        Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting ((*j)->GetObject<Ipv4> ());
-        remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
-//        std::string addrString = "1.0.0." + n.str();
-//        NS_LOG_DEBUG("addr string: " << addrString);
-        remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address ("1.0.0.0"), Ipv4Mask ("255.0.0.0"),1);
-//        n+=2;
-    }
-
-//    //Logging for who-is-who detection
-//    NodeContainer::Iterator k;
-//    for (k = remoteHostContainer.Begin (); k != remoteHostContainer.End (); ++k) {
-//        Ptr<Ipv4> ipv4 = (*k)->GetObject<Ipv4>();
-//        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
-//        Ipv4Address address = iaddr.GetLocal();
-//        NS_LOG_DEBUG("Node (ORC/SERVER) " << (*k)->GetId() << ",address: " << address);
-//    }
-//    NS_LOG_DEBUG("Test 9");
 }
 
 void InstallMobilityModels(){
@@ -395,8 +426,8 @@ void InstallApplications(){
     m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
     m_factory.Set ("AllServers", StringValue(mecString));
     m_factory.Set ("AllUes", StringValue(ueString));
-    m_factory.Set ("UePort", UintegerValue(1002));
-    m_factory.Set ("MecPort", UintegerValue(1001));
+    m_factory.Set ("UePort", UintegerValue(1000));
+    m_factory.Set ("MecPort", UintegerValue(1000));
 
     Ptr<Application> app = m_factory.Create<Application> ();
     orcNode->AddApplication (app);
@@ -420,9 +451,9 @@ void InstallApplications(){
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         m_factory.Set ("CellID", UintegerValue(cellId) );
         m_factory.Set ("AllServers", StringValue(mecString));
-        m_factory.Set("MecPort", UintegerValue(1001));
+        m_factory.Set("MecPort", UintegerValue(1000));
         m_factory.Set("AllUes", StringValue(ueString));
-        m_factory.Set("UePort", UintegerValue(1002));
+        m_factory.Set("UePort", UintegerValue(1000));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
@@ -444,7 +475,7 @@ void InstallApplications(){
         m_factory.Set("ServiceInterval", TimeValue(MilliSeconds(SERVICE_INTERVAL)));
         m_factory.Set("PingInterval", TimeValue(MilliSeconds(PING_INTERVAL)));
         m_factory.Set ("MecIp", Ipv4AddressValue(remoteAddresses[i+1]));
-        m_factory.Set("MecPort", UintegerValue(1001));
+        m_factory.Set("MecPort", UintegerValue(1000));
         m_factory.Set ("OrcIp", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         //TODO give the below argument the right value, currently is wrong
@@ -494,9 +525,6 @@ main (int argc, char *argv[]) {
     epcHelper = CreateObject<PointToPointEpcHelper>();
     lteHelper->SetEpcHelper(epcHelper);
 
-    pgw = epcHelper->GetPgwNode();
-
-    routerNode.Create(1);
     CreateRemoteHosts();
 
 

@@ -144,56 +144,67 @@ namespace ns3 {
         NS_LOG_DEBUG("ueString: " << m_ueString);
         NS_LOG_DEBUG("serverString: " << m_serverString);
 
-        //Make socket for each server
-        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
-            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            Ptr<Socket> tempSocket;
-            InetSocketAddress inet = (*it);
-            tempSocket = Socket::CreateSocket (GetNode (), tid);
-            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_mecPort);
-            tempSocket->Bind (local);
-            tempSocket->Connect (inet);
-            tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
-            tempSocket->SetAllowBroadcast (true);
-            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
-            serverSocketMap.insert(newPair);
-        }
+        TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+        Ptr<Socket> tempSocket;
+        tempSocket = Socket::CreateSocket (GetNode(), tid);
+        InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), 1000);
+        tempSocket->Bind(local);
+        tempSocket->Connect(InetSocketAddress("0.0.0.0", 1000));
+        tempSocket->SetRecvCallback(MakeCallback(&MecOrcApplication::HandleRead, this));
+        tempSocket->SetAllowBroadcast(false);
+        m_socket = tempSocket;
 
-        //Make socket for each UE
-        for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
-            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            Ptr<Socket> tempSocket;
-            InetSocketAddress inet2 = (*it);
-            tempSocket = Socket::CreateSocket (GetNode (), tid);
-            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_uePort);
-            tempSocket->Bind (local);
-            tempSocket->Connect (inet2);
-            tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
-            tempSocket->SetAllowBroadcast (true);
-            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet2, tempSocket);
-            ueSocketMap.insert(newPair);
-        }
+//        //Make socket for each server
+//        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
+//            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+//            Ptr<Socket> tempSocket;
+//            InetSocketAddress inet = (*it);
+//            tempSocket = Socket::CreateSocket (GetNode(), tid);
+//            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny(), m_mecPort);
+//            tempSocket->Bind(local);
+//            tempSocket->Connect(inet);
+//            tempSocket->SetRecvCallback(MakeCallback(&MecOrcApplication::HandleRead, this));
+//            tempSocket->SetAllowBroadcast (true);
+//            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
+//            serverSocketMap.insert(newPair);
+//        }
+//
+//        //Make socket for each UE
+//        for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
+//            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+//            Ptr<Socket> tempSocket;
+//            InetSocketAddress inet2 = (*it);
+//            tempSocket = Socket::CreateSocket (GetNode (), tid);
+//            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_uePort);
+//            tempSocket->Bind (local);
+//            tempSocket->Connect (inet2);
+//            tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
+//            tempSocket->SetAllowBroadcast (true);
+//            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet2, tempSocket);
+//            ueSocketMap.insert(newPair);
+//        }
     }
 
     void
     MecOrcApplication::StopApplication () {
         NS_LOG_FUNCTION (this);
 
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
-        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
-            Ptr<Socket> tempSocket = it->second;
-            tempSocket->Close ();
-            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-            tempSocket = 0;
-        }
-        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2;
-        for (it2 = ueSocketMap.begin(); it2 != ueSocketMap.end(); ++it2){
-            Ptr<Socket> tempSocket = it2->second;
-            tempSocket->Close ();
-            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-            tempSocket = 0;
-        }
-
+//        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
+//        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
+//            Ptr<Socket> tempSocket = it->second;
+//            tempSocket->Close ();
+//            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+//            tempSocket = 0;
+//        }
+//        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2;
+//        for (it2 = ueSocketMap.begin(); it2 != ueSocketMap.end(); ++it2){
+//            Ptr<Socket> tempSocket = it2->second;
+//            tempSocket->Close ();
+//            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+//            tempSocket = 0;
+//        }
+        m_socket->Close();
+        m_socket->SetRecvCallback(MakeNullCallback<void, Ptr<Socket>> ());
 
     }
 
@@ -224,8 +235,6 @@ namespace ns3 {
 
     void
     MecOrcApplication::SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress) {
-
-
         //Convert Address into string
         Ipv4Address addr = newMecAddress.GetIpv4();
         std::stringstream ss;
@@ -247,24 +256,10 @@ namespace ns3 {
         Ptr<Packet> p = Create<Packet> (buffer, m_packetSize);
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
-        m_txTrace (p);
+        m_txTrace(p);
 
-        //Find correct UE to connect to and send message trough the matching socket
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
-        Ptr<Socket> newSocket = 0;
-        for (it = ueSocketMap.begin(); it != ueSocketMap.end() && newSocket == 0; ++it){
-            InetSocketAddress current = it->first;
-            if(current.GetIpv4() == ueAddress.GetIpv4() && current.GetPort() == ueAddress.GetPort()){
-                newSocket = it->second;
-            }
-        }
-        if (newSocket != 0){
-            newSocket->Send(p);
-            ++m_sent;
-        }
-        else {
-            NS_LOG_ERROR("Attempt to send to non-existing server socket");
-        }
+        m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
+        ++m_sent;
     }
 
     void
@@ -296,22 +291,8 @@ namespace ns3 {
         // so that tags added to the packet can be sent as well
         m_txTrace(p);
 
-        //Find correct MEC to connect to and send message trough the matching socket
-        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
-        Ptr<Socket> newSocket = 0;
-        for (it = ueSocketMap.begin(); it != ueSocketMap.end() && newSocket == 0; ++it){
-            InetSocketAddress current = it->first;
-            if(current.GetIpv4() == newMecAddress.GetIpv4() && current.GetPort() == newMecAddress.GetPort()){
-                newSocket = it->second;
-            }
-        }
-        if (newSocket != 0){
-            newSocket->Send(p);
-            ++m_sent;
-        }
-        else {
-            NS_LOG_ERROR("Attempt to send to non-existing server socket");
-        }
+        m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
+        ++m_sent;
     }
 
     void

@@ -102,7 +102,7 @@ namespace ns3 {
 
 
         uint32_t m_sent; //!< Counter for sent packets
-        Ptr<Socket> m_orcSocket; //!< Socket
+        Ptr<Socket> m_socket; //!< Socket
         EventId m_sendPingEvent;
         EventId m_sendServiceEvent;
         uint8_t *m_data_request;
@@ -117,9 +117,6 @@ namespace ns3 {
         Ptr<NetDevice> m_thisNetDevice;
         Ipv4Address m_thisIpAddress;
         std::string m_serverString;
-
-
-
 
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;

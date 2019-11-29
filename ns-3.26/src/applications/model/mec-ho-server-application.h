@@ -77,7 +77,7 @@ namespace ns3 {
 
         uint32_t m_sent; //!< Counter for sent packets
 
-        Ptr<Socket> m_orcSocket; //!< Socket
+        Ptr<Socket> m_socket; //!< Socket
         std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
         std::map<InetSocketAddress, Ptr<Socket>> clientSocketMap;
 
@@ -115,7 +115,7 @@ namespace ns3 {
         std::vector<InetSocketAddress> m_allServers;
         std::string m_ueString;
         std::vector<InetSocketAddress> m_allUes;
-        Ptr<Socket> m_echoSocket;
+        Ipv4Address m_echoAddress;
         std::set<InetSocketAddress> myClients;
     };
 

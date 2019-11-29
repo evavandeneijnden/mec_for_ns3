@@ -202,48 +202,21 @@ namespace ns3 {
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
 //            NS_LOG_DEBUG("FOUND SERVER: " << ipv4);
-            m_allServers.push_back(InetSocketAddress(ipv4,1001));
+            m_allServers.push_back(InetSocketAddress(ipv4, 1000));
 
 
         }
 
         //Make ORC socket
-        if (m_orcSocket == 0)
-        {
+        if (m_socket == 0) {
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            m_orcSocket = Socket::CreateSocket (GetNode (), tid);
+            m_socket = Socket::CreateSocket (GetNode (), tid);
             InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_orcPort);
-            m_orcSocket->Bind (local);
-            m_orcSocket->Connect (InetSocketAddress(m_orcIp, m_orcPort));
+            m_socket->Bind (local);
+            m_socket->Connect(InetSocketAddress(m_orcIp, m_orcPort));
         }
-        m_orcSocket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
-        m_orcSocket->SetAllowBroadcast (true);
-
-        //Make socket for each server
-        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
-            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-            Ptr<Socket> tempSocket;
-            tempSocket = Socket::CreateSocket (GetNode (), tid);
-//            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_mecPort); // TODO Remove (unneeded now)
-            //tempSocket->Bind (local);
-            tempSocket->Bind ();
-            // TODO check that the below returns the correct type etc.
-            InetSocketAddress inet = (*it);
-//            NS_LOG_DEBUG("SETTING UP");
-//            NS_LOG_DEBUG("CONNECTING " << local.GetIpv4() << " TO " << inet.GetIpv4());
-            tempSocket->Connect (inet);
-            tempSocket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
-            tempSocket->SetAllowBroadcast (true);
-            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
-            serverSocketMap.insert(newPair);
-
-            //set currentMecSocket
-            if ((*it).GetIpv4() == m_mecIp && (*it).GetPort() == m_mecPort){
-                //this MEC is our current MEC
-                currentMecSocket = tempSocket;
-            }
-        }
-
+        m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
+        m_socket->SetAllowBroadcast(false);
 
 
         m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendServiceRequest, this);
@@ -257,11 +230,11 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
-        if (m_orcSocket != 0)
+        if (m_socket != 0)
         {
-            m_orcSocket->Close ();
-            m_orcSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-            m_orcSocket = 0;
+            m_socket->Close ();
+            m_socket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+            m_socket = 0;
         }
 
         std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
@@ -384,7 +357,7 @@ namespace ns3 {
             m_txTrace (p);
 //            NS_LOG_DEBUG("test2");
 //            NS_LOG_DEBUG("currentMecSocket: " << currentMecSocket->GetSocketType());
-            currentMecSocket->Send (p);
+            m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 //            NS_LOG_DEBUG("test3");
 
             ++m_sent;
@@ -415,7 +388,6 @@ namespace ns3 {
             else {
                 m_pingSent.insert(std::pair<Ipv4Address, Time>(mec.GetIpv4(), Simulator::Now()));
 
-
                 //Create packet payload
                 std::string fillString = "1/";
                 fillString.append(std::to_string(GetCellId()) + "/");
@@ -429,8 +401,7 @@ namespace ns3 {
                 m_txTrace(p);
 
                 //Determine correct server socket and send
-                Ptr<Socket> pingSocket = serverSocketMap.find(mec)->second;
-                pingSocket->Send(p);
+                m_socket->SendTo(p, 0, mec);
 
                 ++m_sent;
 
@@ -477,10 +448,8 @@ namespace ns3 {
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
-        m_orcSocket->Send (p);
-
+        m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
         ++m_sent;
-
     }
 
     void
