@@ -378,6 +378,7 @@ namespace ns3 {
     void
     MecUeApplication::SendPing (void)
     {
+        NS_LOG_FUNCTION (this);
         NS_ASSERT (m_sendPingEvent.IsExpired ());
         m_pingSent.clear();
         for (InetSocketAddress mec: m_allServers){
@@ -418,7 +419,7 @@ namespace ns3 {
 
     void
     MecUeApplication::SendMeasurementReport (void){
-
+        NS_LOG_FUNCTION (this);
         //Create packet payload
         //Convert current mec address into string
         std::stringstream ss;

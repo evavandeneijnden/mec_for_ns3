@@ -230,14 +230,14 @@ void CreateRemoteHosts() {
         n+=2;
     }
 
-    NS_LOG_DEBUG("Show resulting configuration__________________");
-    printNodeConfiguration("ROUTER", router);
-    printNodeConfiguration("PGW", pgw);
-
-    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
-        Ptr<Node> remote_host = remoteHosts[i_remote_host];
-        printNodeConfiguration("Node " + std::to_string(remote_host->GetId()), remote_host);
-    }
+//    NS_LOG_DEBUG("Show resulting configuration__________________");
+//    printNodeConfiguration("ROUTER", router);
+//    printNodeConfiguration("PGW", pgw);
+//
+//    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+//        Ptr<Node> remote_host = remoteHosts[i_remote_host];
+//        printNodeConfiguration("Node " + std::to_string(remote_host->GetId()), remote_host);
+//    }
 
 
     for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {

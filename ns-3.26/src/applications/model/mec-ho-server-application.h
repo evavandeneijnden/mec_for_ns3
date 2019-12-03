@@ -117,6 +117,7 @@ namespace ns3 {
         std::vector<InetSocketAddress> m_allUes;
         Ipv4Address m_echoAddress;
         std::set<InetSocketAddress> myClients;
+        Ptr<Packet> echoPacket;
     };
 
 } // namespace ns3

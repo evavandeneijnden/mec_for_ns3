@@ -235,6 +235,7 @@ namespace ns3 {
 
     void
     MecOrcApplication::SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress) {
+        NS_LOG_FUNCTION (this);
         //Convert Address into string
         Ipv4Address addr = newMecAddress.GetIpv4();
         std::stringstream ss;
@@ -265,6 +266,7 @@ namespace ns3 {
     void
     MecOrcApplication::SendMecHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress)
     {
+        NS_LOG_FUNCTION (this);
         //Convert ueAddress into string
         Ipv4Address ueAddr = ueAddress.GetIpv4();
         std::stringstream ss;
