@@ -219,7 +219,7 @@ namespace ns3 {
         m_socket->SetAllowBroadcast(false);
 
 
-        m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendServiceRequest, this);
+        m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendFirstRequest, this);
 //        NS_LOG_DEBUG("SendServiceEvent 2: " << m_sendServiceEvent.GetUid());
         m_sendPingEvent = Simulator::Schedule(Seconds(2), &MecUeApplication::SendPing, this);
     }
@@ -328,6 +328,33 @@ namespace ns3 {
 //        m_sendServiceEvent = Simulator::Schedule (MilliSeconds(150), &MecUeApplication::SendServiceRequest, this);
 ////        NS_LOG_DEBUG("SendServiceEvent 3: " << m_sendServiceEvent.GetUid());
 //    }
+
+
+    //First service request sets special flag so that the MEC will add this UE to its client list
+    void
+    MecUeApplication::SendFirstRequest (void) {
+        NS_LOG_FUNCTION(this);
+
+        //Create packet payload
+        std::string fillString = "8/" + std::to_string(GetCellId()) + "/";
+        uint8_t *buffer = GetFilledString(fillString, m_size);
+
+        //Create packet
+        Ptr<Packet> p = Create<Packet> (buffer, m_size);
+        // call to the trace sinks before the packet is actually sent,
+        // so that tags added to the packet can be sent as well
+        m_txTrace (p);
+        m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
+
+        ++m_sent;
+
+
+        if (m_sent < m_count)
+        {
+            m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+//                NextService(m_serviceInterval);
+        }
+    }
 
     void
     MecUeApplication::SendServiceRequest (void) {

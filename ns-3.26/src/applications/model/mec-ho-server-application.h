@@ -100,10 +100,10 @@ namespace ns3 {
         int m_packetSize;
         uint32_t m_cellId;
 
-         static const int MSG_FREQ = 10;
-         static const int MEAS_FREQ = 10;
-         static const int MEC_RATE = 10000;
-         static const int UE_SIZE = 200;
+         const double MSG_FREQ = 0.001; //in messages/millisecond
+         const double MEAS_FREQ = 0.001; //in measurements/millisecond
+         const double MEC_RATE = 0.1; //in jobs per millisecond
+         const int UE_SIZE = 200;
 
         uint32_t m_expectedWaitingTime = 0;
         int m_noClients ;

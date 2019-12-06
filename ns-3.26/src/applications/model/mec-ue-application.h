@@ -85,6 +85,7 @@ namespace ns3 {
 
 
         void SendServiceRequest(void);
+        void SendFirstRequest(void);
         void SendPing(void);
         void SendMeasurementReport(void);
 

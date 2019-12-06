@@ -43,7 +43,7 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
-double simTime = 2.2;
+double simTime = 5;
 double interPacketInterval = 100;
 int numberOfUes = 2;
 int numberOfEnbs = 3; //Hardcoded to 3 at the moment!
@@ -55,13 +55,12 @@ std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
 
 uint32_t ORC_PACKET_SIZE = 512;
 uint32_t MEC_PACKET_SIZE = 512;
-uint32_t MEC_UPDATE_INTERVAL = 1000;
+uint32_t MEC_UPDATE_INTERVAL = 1000; // in ms
 uint32_t UE_PACKET_SIZE = 1024;
-uint32_t PING_INTERVAL = 100;
-uint32_t SERVICE_INTERVAL = 10;
+uint32_t PING_INTERVAL = 100; //in ms
+uint32_t SERVICE_INTERVAL = 10; //in ms
 
 
-//TODO refactor so that these do not have to be global variables
 InternetStackHelper internet;
 PointToPointHelper p2ph;
 ApplicationContainer mecApps;
@@ -519,7 +518,6 @@ int StartSimulation(){
 
 int
 main (int argc, char *argv[]) {
-    // TODO Servers cannot talk to each other as they are P2P to PGW and not on the same subnet?
 
     lteHelper = CreateObject<LteHelper>();
     epcHelper = CreateObject<PointToPointEpcHelper>();

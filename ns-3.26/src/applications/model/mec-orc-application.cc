@@ -94,7 +94,7 @@ namespace ns3 {
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
-            m_allServers.push_back(InetSocketAddress(ipv4, 1001));
+            m_allServers.push_back(InetSocketAddress(ipv4, 1000));
         }
 
         std::vector<std::string> args2;
@@ -116,7 +116,7 @@ namespace ns3 {
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
-            m_allUes.push_back(InetSocketAddress(ipv4, 1002));
+            m_allUes.push_back(InetSocketAddress(ipv4, 1000));
         }
     }
 
