@@ -76,6 +76,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                                UintegerValue(),
                                MakeUintegerAccessor (&MecHoServerApplication::m_uePort),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("NumberOfUes", "Number of UEs in the system",
+                               UintegerValue(),
+                               MakeUintegerAccessor (&MecHoServerApplication::m_noUes),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecHoServerApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -93,7 +97,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         m_echoEvent = EventId();
         m_startTime = Simulator::Now();
 
-        m_noUes = 2; //TODO hardcoded for now, finetune later
         m_noHandovers = 0;
         noSendUntil = Simulator::Now();
 

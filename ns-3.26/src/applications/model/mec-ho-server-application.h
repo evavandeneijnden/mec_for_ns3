@@ -106,7 +106,6 @@ namespace ns3 {
          const int UE_SIZE = 200;
 
         uint32_t m_expectedWaitingTime = 0;
-        int m_noClients ;
         int m_noUes ;
         int m_noHandovers ;
         Time m_startTime;

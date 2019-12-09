@@ -453,6 +453,7 @@ void InstallApplications(){
         m_factory.Set("MecPort", UintegerValue(1000));
         m_factory.Set("AllUes", StringValue(ueString));
         m_factory.Set("UePort", UintegerValue(1000));
+        m_factory.Set("NumberOfUes", UintegerValue(numberOfUes));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
