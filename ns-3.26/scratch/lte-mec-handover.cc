@@ -43,23 +43,22 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
-double simTime = 5;
-double interPacketInterval = 100;
-int numberOfUes = 2;
-int numberOfEnbs = 3; //Hardcoded to 3 at the moment!
-double enb_distance = 4000.0;
-int numberOfMecs = 4;
-double mec_distance = 3000.0;
-double numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
-std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
-
 uint32_t ORC_PACKET_SIZE = 512;
 uint32_t MEC_PACKET_SIZE = 512;
 uint32_t MEC_UPDATE_INTERVAL = 1000; // in ms
 uint32_t UE_PACKET_SIZE = 1024;
-uint32_t PING_INTERVAL = 100; //in ms
-uint32_t SERVICE_INTERVAL = 10; //in ms
+uint32_t PING_INTERVAL = 1000; //in ms
+uint32_t SERVICE_INTERVAL = 100; //in ms
+double simTime = 5; //in seconds
+int numberOfUes = 2;
 
+//do not change these values, they are hardcoded (for now)
+int numberOfEnbs = 3;
+double enb_distance = 4000.0;
+int numberOfMecs = 4;
+double mec_distance = 3000.0;
+double numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
+// -------------------------------------------------------
 
 InternetStackHelper internet;
 PointToPointHelper p2ph;
@@ -77,6 +76,7 @@ NodeContainer ueNodes;
 NodeContainer enbNodes;
 std::map<Ptr<Node>, uint64_t> ueImsiMap;
 std::vector<Ipv4Address> ueAddresses;
+std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
 
 void printNodeConfiguration(std::string name, Ptr<Node> node) {
     NS_LOG_DEBUG("________FOR " << name << "(" << node->GetId() << ")___________");

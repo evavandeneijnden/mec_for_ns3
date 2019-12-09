@@ -87,7 +87,7 @@ namespace ns3 {
         void SendServiceRequest(void);
         void SendFirstRequest(void);
         void SendPing(void);
-        void SendMeasurementReport(void);
+        void SendMeasurementReport(std::map<Ipv4Address,int64_t> report);
 
         void NextService(Time);
 

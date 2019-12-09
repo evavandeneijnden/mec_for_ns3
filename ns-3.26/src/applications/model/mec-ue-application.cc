@@ -123,7 +123,6 @@ namespace ns3 {
         m_sent = 0;
         m_sendPingEvent = EventId ();
         m_sendServiceEvent = EventId ();
-//        NS_LOG_DEBUG("SendServiceEvent: " << m_sendServiceEvent.GetUid());
         m_data_request = 0;
         m_data_ping = 0;
         m_data_report = 0;
@@ -219,9 +218,8 @@ namespace ns3 {
         m_socket->SetAllowBroadcast(false);
 
 
-        m_sendServiceEvent = Simulator::Schedule (Seconds(2), &MecUeApplication::SendFirstRequest, this);
-//        NS_LOG_DEBUG("SendServiceEvent 2: " << m_sendServiceEvent.GetUid());
-        m_sendPingEvent = Simulator::Schedule(Seconds(2), &MecUeApplication::SendPing, this);
+        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5), &MecUeApplication::SendFirstRequest, this);
+        m_sendPingEvent = Simulator::Schedule(Seconds(0.5), &MecUeApplication::SendPing, this);
     }
 
 
@@ -252,7 +250,7 @@ namespace ns3 {
 
     uint8_t*
     MecUeApplication::GetFilledString (std::string filler, int size) {
-        NS_LOG_FUNCTION(this << filler);
+//        NS_LOG_FUNCTION(this << filler);
 
         std::string result;
         uint8_t *val = (uint8_t *) malloc(size + 1);
@@ -275,7 +273,7 @@ namespace ns3 {
 
 
     uint16_t MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
-        NS_LOG_FUNCTION(this);
+//        NS_LOG_FUNCTION(this);
         uint16_t result = 65000;
 
         Ptr<LteEnbRrc> rrc = enb->GetRrc();
@@ -293,7 +291,7 @@ namespace ns3 {
     }
 
     uint16_t MecUeApplication::GetCellId(){
-        NS_LOG_FUNCTION(this);
+//        NS_LOG_FUNCTION(this);
 
         uint16_t result;
         uint16_t enb0_result = CheckEnb(m_enb0);
@@ -322,14 +320,6 @@ namespace ns3 {
 
     }
 
-//    void
-//    MecUeApplication::NextService(Time interval){
-//        NS_LOG_FUNCTION(this);
-//        m_sendServiceEvent = Simulator::Schedule (MilliSeconds(150), &MecUeApplication::SendServiceRequest, this);
-////        NS_LOG_DEBUG("SendServiceEvent 3: " << m_sendServiceEvent.GetUid());
-//    }
-
-
     //First service request sets special flag so that the MEC will add this UE to its client list
     void
     MecUeApplication::SendFirstRequest (void) {
@@ -352,7 +342,6 @@ namespace ns3 {
         if (m_sent < m_count)
         {
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-//                NextService(m_serviceInterval);
         }
     }
 
@@ -406,7 +395,6 @@ namespace ns3 {
     MecUeApplication::SendPing (void)
     {
         NS_LOG_FUNCTION (this);
-        NS_ASSERT (m_sendPingEvent.IsExpired ());
         m_pingSent.clear();
         for (InetSocketAddress mec: m_allServers){
             if (Simulator::Now() < m_noSendUntil){
@@ -417,10 +405,9 @@ namespace ns3 {
                 m_pingSent.insert(std::pair<Ipv4Address, Time>(mec.GetIpv4(), Simulator::Now()));
 
                 //Create packet payload
-                std::string fillString = "1/";
+                std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/");
                 uint8_t *buffer = GetFilledString(fillString, m_size);
-//                NS_LOG_DEBUG("After getfilled in sendping");
 
                 //Create packet
                 Ptr <Packet> p = Create<Packet>(buffer, m_size);
@@ -434,9 +421,7 @@ namespace ns3 {
                 ++m_sent;
 
                 if (m_sent < m_count) {
-//                    NS_LOG_DEBUG("Ping interval: " << m_pingInterval);
-                    m_sendPingEvent = Simulator::Schedule(MilliSeconds(m_pingInterval), &MecUeApplication::SendPing, this);
-//                    NS_LOG_DEBUG("SendServiceEvent 4: " << m_sendServiceEvent.GetUid());
+                    m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
                 }
 
                 m_requestBlocked = false;
@@ -445,23 +430,26 @@ namespace ns3 {
     }
 
     void
-    MecUeApplication::SendMeasurementReport (void){
+    MecUeApplication::SendMeasurementReport (std::map<Ipv4Address,int64_t> report){
         NS_LOG_FUNCTION (this);
         //Create packet payload
         //Convert current mec address into string
         std::stringstream ss;
-        std::ofstream os ("temp.txt", std::ofstream::out);
+        std::stringstream os;
         m_mecIp.Print(os);
         ss << os.rdbuf();
-        std::string m_mecIpString = ss.str();
-        std::string payload = "2/" + m_mecIpString + "/";
+        std::string mecString = ss.str();
 
-        for (std::map<Ipv4Address,int64_t>::iterator it = m_measurementReport.begin(); it != m_measurementReport.end(); ++it){
+        std::string payload = "3/" + mecString + "/";
+
+        for (std::map<Ipv4Address,int64_t>::iterator it = report.begin(); it != report.end(); ++it){
             //Convert Address into string
             Ipv4Address addr = it->first;
-            addr.Print(os);
-            ss << os.rdbuf();
-            std::string addrString = ss.str();
+            std::stringstream ss2;
+            std::stringstream os2;
+            addr.Print(os2);
+            ss2 << os2.rdbuf();
+            std::string addrString = ss2.str();
 
             payload.append(addrString + "!" + std::to_string(it->second) + "!");
         }
@@ -470,7 +458,6 @@ namespace ns3 {
 
         uint8_t *buffer = GetFilledString(payload, m_size);
 //        NS_LOG_DEBUG("after getfilled in sendmeasurementreport");
-
         //Create packet
         Ptr<Packet> p = Create<Packet> (buffer, m_size);
         // call to the trace sinks before the packet is actually sent,
@@ -514,34 +501,33 @@ namespace ns3 {
                 }
 
                 switch(std::stoi(args[0])){
-                    case 2:
-                        //This request came from a MEC
-                        if (inet_from == InetSocketAddress(m_mecIp, m_mecPort)){
-                            int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
-                            NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "\n");
+                    //Originally was message type 2, but this way packets can be echoed by the MEC for easier implementation
+                    case 1: {
+                        //This is a service response from a MEC
+                        int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
+                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << ","
+                                             << delay << "\n");
+                        break;
+                    }
+                    case 2: {
+                        //This is a ping response from a MEC
+                        Time sendTime;
+                        for (std::map<Ipv4Address,Time>::iterator it = m_pingSent.begin(); it != m_pingSent.end(); ++it){
+                            if((it->first) == from_ipv4){
+                                sendTime = it->second;
+                                break;
+                            }
                         }
-                        else{
-                            Time sendTime;
-                            for (std::map<Ipv4Address,Time>::iterator it = m_pingSent.begin(); it != m_pingSent.end(); ++it){
-                                if((it->first) == from_ipv4){
-                                    sendTime = it->second;
-                                    break;
-                                }
-                            }
-
-                            int64_t delay = (Simulator::Now() - sendTime).GetMilliSeconds();
-                            m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
-
-                            if(m_measurementReport.size() == m_allServers.size()){
-                                //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
-                                Simulator::Schedule(Seconds(0), &MecUeApplication::SendMeasurementReport, this);
-                                m_measurementReport.clear(); //Start with an empty report for the next iteration
-
-
-                            }
+                        int64_t delay = (Simulator::Now() - sendTime).GetMilliSeconds();
+                        m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
+                        if(m_measurementReport.size() == m_allServers.size()){
+                            //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
+                            Simulator::Schedule(Seconds(0), &MecUeApplication::SendMeasurementReport, this, m_measurementReport);
+                            m_measurementReport.clear(); //Start with an empty report for the next iteration
                         }
                         break;
-                    case 6:
+                    }
+                    case 6: {
                         //Handover command
                         //Get new MEC address
                         std::string addressString = args[1];
@@ -553,15 +539,17 @@ namespace ns3 {
                         uint16_t newPort = std::stoi(portString);
 
                         //Update MEC address
-                        NS_LOG_INFO("Handover," << Simulator::Now()<< "," << m_thisIpAddress << "," << m_mecIp << "," << newAddress << "\n");
+                        NS_LOG_INFO("Handover," << Simulator::Now() << "," << m_thisIpAddress << "," << m_mecIp << ","
+                                                << newAddress << "\n");
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
                         //Set current_server socket to new server address
                         currentMecSocket = serverSocketMap.find(InetSocketAddress(m_mecIp, m_mecPort))->second;
-                        
+
                         //Set no-send period
                         m_noSendUntil = Simulator::Now() + Time(args[3]);
                         break;
+                    }
                 }
             }
         }

@@ -414,6 +414,31 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
                         break;
                     }
+                    case 2:{
+                        // ping request from UE
+                        int ue_cellId = stoi(args[1]);
+                        uint32_t delay = 0; //in ms
+
+                        if (int(m_cellId) == ue_cellId){
+                            if (myClients.find(inet_from) != myClients.end()){
+                                delay = m_expectedWaitingTime;
+                            }
+                            else{
+                                //UE is connected to another MEC; add "penalty" for having to go through network
+                                delay = m_expectedWaitingTime + 15;
+                            }
+                        }
+                        else {
+                            //UE is connected to another eNB; add "penalty" for having to go through network
+                            delay = m_expectedWaitingTime + 15;
+                        }
+                        m_echoAddress = inet_from.GetIpv4();
+                        //Echo packet back to sender with appropriate delay
+                        echoPacket = packet;
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
+                        break;
+                    }
+
                     case 4: {
                         //handover command from orc
                         //Get new MEC address
