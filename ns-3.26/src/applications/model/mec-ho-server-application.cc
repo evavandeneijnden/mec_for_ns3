@@ -310,7 +310,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     }
 
     void
-    MecHoServerApplication::SendUeTransfer (void)
+    MecHoServerApplication::SendUeTransfer (Ipv4Address newAddress)
     {
         NS_LOG_FUNCTION (this);
         if (Simulator::Now() > noSendUntil){
@@ -318,7 +318,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             //Get string representation of UE address
             std::stringstream ss;
             std::stringstream os;
-            m_newAddress.Print(os);
+            newAddress.Print(os);
             ss << os.rdbuf();
             std::string addrString = ss.str();
 
@@ -330,29 +330,28 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace(p);
-            // TODO m_newAddress may be overwritten by multiple receives at once
-            m_socket->SendTo(p, 0, InetSocketAddress(m_newAddress, 1000));
+            m_socket->SendTo(p, 0, InetSocketAddress(newAddress, 1000));
             ++m_sent;
         }
         else {
-            m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this);
+            m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this, newAddress);
         }
 
     }
 
 
     void
-    MecHoServerApplication::SendEcho (void)
+    MecHoServerApplication::SendEcho (Ipv4Address echoAddress)
     {
         NS_LOG_FUNCTION (this);
         if(Simulator::Now() > noSendUntil){
             m_txTrace(echoPacket);
-            m_socket->SendTo(echoPacket, 0, InetSocketAddress(m_echoAddress, 1000));
+            m_socket->SendTo(echoPacket, 0, InetSocketAddress(echoAddress, 1000));
 
             ++m_sent;
         }
         else {
-            m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this);
+            m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this, echoAddress);
         }
     }
 
@@ -412,7 +411,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         echoPacket = packet;
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
                         break;
                     }
                     case 4: {
@@ -432,7 +431,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         myClients.erase(newInet);
                         //Initiate handover
-                        Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this);
+                        Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this, m_newAddress);
                         break;
                     }
                     case 7: {
@@ -467,7 +466,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         echoPacket = packet;
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
                         break;
                     }
                 }
