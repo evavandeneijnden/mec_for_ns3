@@ -158,7 +158,7 @@ void CreateRemoteHosts() {
         //Setup remote hosts
     std::vector<Ptr<Node>> remoteHosts;
     for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
-        NS_LOG_DEBUG("Setting up server/ORC" << i_remote_host);
+//        NS_LOG_DEBUG("Setting up server/ORC" << i_remote_host);
         Ptr<Node> remoteHost_p = CreateObject<Node>();
         internet.Install(remoteHost_p);
         remoteHosts.push_back(remoteHost_p);
@@ -326,6 +326,7 @@ void InstallUeNodes(){
         ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
     }
     // Attach one UE per eNodeB
+    //TODO when scaling the experiment up, check that this works
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
         Ptr<NetDevice> ueDev = ueLteDevs.Get(i);
@@ -469,6 +470,10 @@ void InstallApplications(){
         Ptr<Node> node = ueNodes.Get(i);
         uint64_t ueImsi = ueImsiMap.find(node)->second;
 
+        Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
+        Ipv4Address ipAddr = iaddr.GetLocal();
+
         ObjectFactory m_factory = ObjectFactory("ns3::MecUeApplication");
         m_factory.Set("MaxPackets", UintegerValue(10000));
         m_factory.Set("PacketSize", UintegerValue(UE_PACKET_SIZE));
@@ -478,8 +483,7 @@ void InstallApplications(){
         m_factory.Set("MecPort", UintegerValue(1000));
         m_factory.Set ("OrcIp", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
-        //TODO give the below argument the right value, currently is wrong
-        m_factory.Set("Local", Ipv4AddressValue(remoteAddresses[i]));
+        m_factory.Set("Local", Ipv4AddressValue(ipAddr));
         m_factory.Set ("AllServers", StringValue(mecString));
         m_factory.Set ("Enb0", PointerValue(enbLteDevs.Get(0)));
         m_factory.Set ("Enb1", PointerValue(enbLteDevs.Get(1)));
