@@ -341,17 +341,17 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
 
     void
-    MecHoServerApplication::SendEcho (Ipv4Address echoAddress)
+    MecHoServerApplication::SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet)
     {
         NS_LOG_FUNCTION (this);
         if(Simulator::Now() > noSendUntil){
-            m_txTrace(echoPacket);
-            m_socket->SendTo(echoPacket, 0, InetSocketAddress(echoAddress, 1000));
+            m_txTrace(packet);
+            m_socket->SendTo(packet, 0, InetSocketAddress(echoAddress, 1000));
 
             ++m_sent;
         }
         else {
-            m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this, echoAddress);
+            m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this, echoAddress, packet);
         }
     }
 
@@ -410,12 +410,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        echoPacket = packet;
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
                         break;
                     }
                     case 2:{
                         // ping request from UE
+                        NS_LOG_DEBUG("Received ping request from " << inet_from.GetIpv4());
+                        NS_LOG_DEBUG("My cellID is " << m_cellId);
                         int ue_cellId = stoi(args[1]);
                         uint32_t delay = 0; //in ms
 
@@ -434,8 +435,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        echoPacket = packet;
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
                         break;
                     }
 
@@ -490,8 +490,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        echoPacket = packet;
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress);
+                        //Create packet payload
+                        std::string fillString = "1/3/";
+                        uint8_t *buffer = GetFilledString(fillString, m_packetSize);
+
+                        //Send packet
+                        Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, p);
                         break;
                     }
                 }

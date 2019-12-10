@@ -200,7 +200,6 @@ namespace ns3 {
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
-//            NS_LOG_DEBUG("FOUND SERVER: " << ipv4);
             m_allServers.push_back(InetSocketAddress(ipv4, 1000));
 
 
@@ -348,7 +347,6 @@ namespace ns3 {
     void
     MecUeApplication::SendServiceRequest (void) {
         NS_LOG_FUNCTION(this);
-//        NS_LOG_DEBUG("Delay left: " << Simulator::GetDelayLeft(m_sendServiceEvent));
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
         if (Simulator::Now() < m_noSendUntil){
@@ -363,7 +361,6 @@ namespace ns3 {
             //Create packet payloadU
             std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
             uint8_t *buffer = GetFilledString(fillString, m_size);
-//            NS_LOG_DEBUG("After getfilled in sendservice");
 
 
             //Create packet
@@ -371,14 +368,9 @@ namespace ns3 {
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace (p);
-//            NS_LOG_DEBUG("test2");
-//            NS_LOG_DEBUG("currentMecSocket: " << currentMecSocket->GetSocketType());
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
-//            NS_LOG_DEBUG("test3");
 
             ++m_sent;
-//            NS_LOG_DEBUG("After sending packet");
-
 
             if (m_sent < m_count)
             {
@@ -456,7 +448,6 @@ namespace ns3 {
         payload.push_back('/'); //! is separator character for the measurementReport
 
         uint8_t *buffer = GetFilledString(payload, m_size);
-//        NS_LOG_DEBUG("after getfilled in sendmeasurementreport");
         //Create packet
         Ptr<Packet> p = Create<Packet> (buffer, m_size);
         // call to the trace sinks before the packet is actually sent,
@@ -503,9 +494,9 @@ namespace ns3 {
                     //Originally was message type 2, but this way packets can be echoed by the MEC for easier implementation
                     case 1: {
                         //This is a service response from a MEC
-                        int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
-                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << ","
-                                             << delay << "\n");
+//                        int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
+//                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << ","
+//                                             << delay);
                         break;
                     }
                     case 2: {
@@ -518,6 +509,7 @@ namespace ns3 {
                             }
                         }
                         int64_t delay = (Simulator::Now() - sendTime).GetMilliSeconds();
+                        std::map<Ipv4Address, int64_t>::iterator it;
                         m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
                         if(m_measurementReport.size() == m_allServers.size()){
                             //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
@@ -539,7 +531,7 @@ namespace ns3 {
 
                         //Update MEC address
                         NS_LOG_INFO("Handover," << Simulator::Now() << "," << m_thisIpAddress << "," << m_mecIp << ","
-                                                << newAddress << "\n");
+                                                << newAddress);
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
                         //Set current_server socket to new server address
