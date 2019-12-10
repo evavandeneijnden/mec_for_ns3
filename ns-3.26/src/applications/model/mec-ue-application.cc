@@ -494,9 +494,8 @@ namespace ns3 {
                     //Originally was message type 2, but this way packets can be echoed by the MEC for easier implementation
                     case 1: {
                         //This is a service response from a MEC
-//                        int64_t delay = (m_requestSent - Simulator::Now()).GetMilliSeconds();
-//                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << ","
-//                                             << delay);
+                        int64_t delay = (Simulator::Now() - m_requestSent).GetMilliSeconds() ;
+                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
                         break;
                     }
                     case 2: {
