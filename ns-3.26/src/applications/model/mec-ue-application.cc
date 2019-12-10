@@ -420,12 +420,11 @@ namespace ns3 {
 
                 ++m_sent;
 
-                if (m_sent < m_count) {
-                    m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
-                }
-
                 m_requestBlocked = false;
             }
+        }
+        if (m_sent < m_count) {
+            m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
         }
     }
 
