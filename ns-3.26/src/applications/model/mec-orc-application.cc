@@ -285,17 +285,17 @@ namespace ns3 {
         //Convert ueAddress into string
         Ipv4Address ueAddr = ueAddress.GetIpv4();
         std::stringstream ss;
-        std::ofstream os ("temp.txt", std::ofstream::out);
+        std::stringstream os;
         ueAddr.Print(os);
         ss << os.rdbuf();
         std::string ueAddrString = ss.str();
-        os.flush();
-        ss.flush();
 
         //Convert newMecAddress into string
         Ipv4Address newMecAddr = newMecAddress.GetIpv4();
-        newMecAddr.Print(os);
-        ss << os.rdbuf();
+        std::stringstream ss2;
+        std::stringstream os2;
+        newMecAddr.Print(os2);
+        ss2 << os2.rdbuf();
         std::string newMecAddrString = ss.str();
 
         //Create packet payload
