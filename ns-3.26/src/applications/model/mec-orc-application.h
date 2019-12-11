@@ -33,6 +33,7 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/string.h"
+#include "ns3/double.h"
 #include "ns3/trace-source-accessor.h"
 
 namespace ns3 {
@@ -75,7 +76,7 @@ namespace ns3 {
         void HandleRead (Ptr<Socket> socket);
 
         void SendMecHandover(InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
-        void SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
+        void SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress, InetSocketAddress currentMecAddress);
 
         uint32_t m_count; //!< Maximum number of packets the application will send
 
@@ -92,11 +93,9 @@ namespace ns3 {
         uint8_t *m_data_mec;
         uint32_t m_packetSize;
 
-        char TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
-        double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
-        int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
-        std::map<InetSocketAddress, int> waitingTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
-
+        char trigger;
+        double hysteresis;
+        int delay_threshold;
 
         std::string m_serverString;
         std::string m_ueString;
@@ -104,6 +103,7 @@ namespace ns3 {
         uint32_t m_mecPort;
         std::vector<InetSocketAddress> m_allServers;
         std::vector<InetSocketAddress> m_allUes;
+        std::map<InetSocketAddress, int> waitingTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
 
     };
 

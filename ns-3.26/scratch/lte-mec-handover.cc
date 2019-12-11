@@ -31,6 +31,7 @@
 #include "ns3/config-store.h"
 #include "ns3/traffic-control-helper.h"
 #include "ns3/traffic-control-layer.h"
+#include "ns3/double.h"
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -43,14 +44,24 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
+//Experiment settings. DO NOT change between experiments
+double simTime = 5; //in seconds
+int numberOfUes = 2;
+
+//Application-mimicking settings. DO NOT change between experiments
 uint32_t ORC_PACKET_SIZE = 512;
 uint32_t MEC_PACKET_SIZE = 512;
 uint32_t MEC_UPDATE_INTERVAL = 1000; // in ms
 uint32_t UE_PACKET_SIZE = 1024;
 uint32_t PING_INTERVAL = 1000; //in ms
 uint32_t SERVICE_INTERVAL = 100; //in ms
-double simTime = 5; //in seconds
-int numberOfUes = 2;
+
+
+//Handover strategy settings. Change between experiments
+int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
+double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
+int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
+
 
 //do not change these values, they are hardcoded (for now)
 int numberOfEnbs = 3;
@@ -421,6 +432,7 @@ void InstallApplications(){
         TypeId temp = TypeId::GetRegistered(i);
         std::string name = temp.GetName();
     }
+    // trigger/hysterisis/delay_threshold
     ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
     m_factory.Set ("MaxPackets", UintegerValue(10000));
     m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
@@ -428,6 +440,9 @@ void InstallApplications(){
     m_factory.Set ("AllUes", StringValue(ueString));
     m_factory.Set ("UePort", UintegerValue(1000));
     m_factory.Set ("MecPort", UintegerValue(1000));
+    m_factory.Set ("Trigger", UintegerValue(TRIGGER));
+    m_factory.Set ("Hysteresis", DoubleValue(HYSTERESIS));
+    m_factory.Set ("DelayThreshold", UintegerValue(DELAY_THRESHOLD));
 
     Ptr<Application> app = m_factory.Create<Application> ();
     orcNode->AddApplication (app);

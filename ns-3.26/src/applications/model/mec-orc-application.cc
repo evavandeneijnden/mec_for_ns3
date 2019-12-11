@@ -58,6 +58,18 @@ namespace ns3 {
                                UintegerValue (),
                                MakeUintegerAccessor (&MecOrcApplication::m_mecPort),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("Trigger", "Trigger used to decide handover",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecOrcApplication::trigger),
+                               MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("Hysteresis", "Percentage performance must be better to consider handover",
+                               DoubleValue (),
+                               MakeDoubleAccessor (&MecOrcApplication::hysteresis),
+                               MakeDoubleChecker<double> ())
+                .AddAttribute ("DelayThreshold", "Minimum delay in ms before handover can be considered",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecOrcApplication::delay_threshold),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecOrcApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -234,7 +246,7 @@ namespace ns3 {
     }
 
     void
-    MecOrcApplication::SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress) {
+    MecOrcApplication::SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress, InetSocketAddress currentMecAddress) {
         NS_LOG_FUNCTION (this);
         //Convert Address into string
         Ipv4Address addr = newMecAddress.GetIpv4();
@@ -250,7 +262,10 @@ namespace ns3 {
         ss2 << (newMecAddress.GetPort());
         std::string portString = ss2.str();
 
-        std::string fillString = "6/" + addrString + "/" + portString + "/";
+        //Used to provide a no-send time (in ms) to the UE so it doesn't try to send messages mid handover; wait until handover has been processed by current AND new MEC
+        int handoverTime = waitingTimes.find(currentMecAddress)->second + waitingTimes.find(newMecAddress)->second;
+
+        std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
         uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
         //Create packet
@@ -368,18 +383,18 @@ namespace ns3 {
 
                             bool triggerEquation;
 
-                            switch(TRIGGER){
+                            switch(trigger){
                                 case 0:
                                     triggerEquation = (delay<optimalDelay);
                                     break;
                                 case 1:
-                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay*(1-HYSTERESIS)));
+                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay*(1-hysteresis)));
                                     break;
                                 case 2:
-                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay - DELAY_THRESHOLD));
+                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay - delay_threshold));
                                     break;
                                 case 3:
-                                    triggerEquation = delay<optimalDelay && (delay < currentDelay*(1-HYSTERESIS)) && (delay < currentDelay - DELAY_THRESHOLD);
+                                    triggerEquation = delay<optimalDelay && (delay < currentDelay*(1-hysteresis)) && (delay < currentDelay - delay_threshold);
                                     break;
                                 default:
                                     NS_LOG_ERROR("Unsupported message type");
@@ -402,9 +417,9 @@ namespace ns3 {
                                 Ipv4Address currentIpv4 = current.GetIpv4();
 
                                 if(currentIpv4 == bestMec){
-                                    InetSocketAddress mecAddress = current;
-                                    SendUeHandover(ueAddress, mecAddress);
-                                    SendMecHandover(ueAddress, mecAddress);
+                                    InetSocketAddress newMecAddress = current;
+                                    SendUeHandover(ueAddress, newMecAddress, currentMecAddr);
+                                    SendMecHandover(ueAddress, newMecAddress);
                                     found = true;
                                 }
                             }
@@ -427,7 +442,7 @@ namespace ns3 {
                         break;
                     }
                     default:
-                        NS_LOG_ERROR("Non-exsitent message type received");
+                        NS_LOG_ERROR("Non-existent message type received");
                         StopApplication();
                 }
             }

@@ -495,7 +495,7 @@ namespace ns3 {
                     case 1: {
                         //This is a service response from a MEC
                         int64_t delay = (Simulator::Now() - m_requestSent).GetMilliSeconds() ;
-                        NS_LOG_INFO("Delay," << Simulator::Now() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
+                        NS_LOG_INFO("Delay," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
                         break;
                     }
                     case 2: {
@@ -529,7 +529,7 @@ namespace ns3 {
                         uint16_t newPort = std::stoi(portString);
 
                         //Update MEC address
-                        NS_LOG_INFO("Handover," << Simulator::Now() << "," << m_thisIpAddress << "," << m_mecIp << ","
+                        NS_LOG_INFO("Handover," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << m_mecIp << ","
                                                 << newAddress);
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
