@@ -92,7 +92,7 @@ namespace ns3 {
         void NextService(Time);
 
         uint16_t GetCellId(void);
-        uint16_t CheckEnb(Ptr<LteEnbNetDevice> enb);
+        bool CheckEnb(Ptr<LteEnbNetDevice> enb);
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send

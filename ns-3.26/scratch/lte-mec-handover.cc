@@ -341,13 +341,14 @@ void InstallUeNodes(){
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
         Ptr<NetDevice> ueDev = ueLteDevs.Get(i);
-        Ptr<NetDevice> enbDev = enbLteDevs.Get(0);
+        Ptr<NetDevice> enbDev = enbLteDevs.Get(i);
         lteHelper->Attach (ueDev, enbDev);
         // side effect: the default EPS bearer will be activated
     }
 
-    NodeContainer::Iterator l;
-    for (l = enbNodes.Begin (); l != enbNodes.End (); ++l) {
+// Old logging
+// NodeContainer::Iterator l;
+//    for (l = enbNodes.Begin (); l != enbNodes.End (); ++l) {
 //        Ptr<Ipv4> ipv4 = (*l)->GetObject<Ipv4>();
 //        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
 //        Ipv4Address address = iaddr.GetLocal();
@@ -373,7 +374,7 @@ void InstallUeNodes(){
 //            }
 //            pgw_interface++;
 //        }
-    }
+//    }
     NodeContainer::Iterator m;
     for (m = ueNodes.Begin (); m != ueNodes.End (); ++m) {
         Ptr<Ipv4> ipv4 = (*m)->GetObject<Ipv4>();

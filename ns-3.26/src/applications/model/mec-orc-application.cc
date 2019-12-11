@@ -153,9 +153,6 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
-        NS_LOG_DEBUG("ueString: " << m_ueString);
-        NS_LOG_DEBUG("serverString: " << m_serverString);
-
         TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
         Ptr<Socket> tempSocket;
         tempSocket = Socket::CreateSocket (GetNode(), tid);
@@ -352,16 +349,17 @@ namespace ns3 {
 
                         //Make map from args[2] content
                         std::string mapString = args[2];
+                        std::string tempString2;
                         std::vector<std::string> map_args;
                         std::map<Ipv4Address, int> delayMap;
                         for (int i = 0 ; i < int(mapString.length()); i++){
                             char c = mapString[i];
                             if(c == '!'){
-                                map_args.push_back(tempString);
-                                tempString = "";
+                                map_args.push_back(tempString2);
+                                tempString2 = "";
                             }
                             else{
-                                tempString.push_back(c);
+                                tempString2.push_back(c);
                             }
                         }
                         for(int i = 0; i < int(map_args.size()); i = i+2){

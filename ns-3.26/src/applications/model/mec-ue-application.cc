@@ -270,10 +270,9 @@ namespace ns3 {
         return val;
     }
 
-
-    uint16_t MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
-//        NS_LOG_FUNCTION(this);
-        uint16_t result = 65000;
+    bool MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
+        NS_LOG_FUNCTION(this);
+        bool result = false;
 
         Ptr<LteEnbRrc> rrc = enb->GetRrc();
         std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
@@ -282,7 +281,7 @@ namespace ns3 {
             Ptr<UeManager> manager = it->second;
             uint64_t imsi = manager->GetImsi();
             if(ueImsi == imsi){
-                result = enb->GetCellId();
+                result = true;
                 break;
             }
         }
@@ -290,35 +289,27 @@ namespace ns3 {
     }
 
     uint16_t MecUeApplication::GetCellId(){
-//        NS_LOG_FUNCTION(this);
+        NS_LOG_FUNCTION(this);
 
         uint16_t result;
-        uint16_t enb0_result = CheckEnb(m_enb0);
 
-        if(int(enb0_result) != 65000){
-            result = enb0_result;
+        if (CheckEnb(m_enb0)){
+            result = m_enb0->GetCellId();
+        }
+        else if (CheckEnb(m_enb1)){
+            result = m_enb1->GetCellId();
+        }
+        else if (CheckEnb(m_enb2)){
+            result = m_enb2->GetCellId();
         }
         else {
-            uint16_t enb1_result = CheckEnb(m_enb1);
-            if(int(enb1_result) != 65000){
-                result = enb1_result;
-            }
-            else {
-                uint16_t enb2_result = CheckEnb(m_enb2);
-                if(int(enb2_result) != 65000){
-                    result = enb2_result;
-                }
-                else{
-                    NS_LOG_ERROR("No CellID found");
-                    StopApplication();
-                }
-            }
-
+            NS_LOG_ERROR("No CellID found");
+            StopApplication();
         }
+        NS_LOG_DEBUG("UE has cellID " << result);
         return result;
 
     }
-
     //First service request sets special flag so that the MEC will add this UE to its client list
     void
     MecUeApplication::SendFirstRequest (void) {
