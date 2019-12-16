@@ -394,20 +394,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         //service request from ue
                         int ue_cellId = stoi(args[1]);
                         uint32_t delay = 0; //in ms
-
-                        if (int(m_cellId) == ue_cellId){
-                            if (myClients.find(inet_from) != myClients.end()){
-                                delay = m_expectedWaitingTime;
-                            }
-                            else{
-                                //UE is connected to another MEC; add "penalty" for having to go through network
-                                delay = m_expectedWaitingTime + 15;
-                            }
-                        }
-                        else {
-                            //UE is connected to another eNB; add "penalty" for having to go through network
-                            delay = m_expectedWaitingTime + 15;
-                        }
+                        delay = m_expectedWaitingTime;
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
@@ -415,17 +402,19 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                     }
                     case 2:{
                         // ping request from UE
-                        NS_LOG_DEBUG("Received ping request from " << inet_from.GetIpv4());
-                        NS_LOG_DEBUG("My cellID is " << m_cellId);
+//                        NS_LOG_DEBUG("Received ping request from " << inet_from.GetIpv4());
+//                        NS_LOG_DEBUG("My cellID is " << m_cellId);
                         int ue_cellId = stoi(args[1]);
                         uint32_t delay = 0; //in ms
 
                         if (int(m_cellId) == ue_cellId){
+                            //UE is connected to same eNB as MEC
                             if (myClients.find(inet_from) != myClients.end()){
+                                //UE is connected to this MEC
                                 delay = m_expectedWaitingTime;
                             }
                             else{
-                                //UE is connected to another MEC; add "penalty" for having to go through network
+                                //TODO UE is connected to another MEC on the same eNB; add "penalty" for having to go through network
                                 delay = m_expectedWaitingTime + 15;
                             }
                         }
