@@ -32,6 +32,7 @@
 #include "ns3/traffic-control-helper.h"
 #include "ns3/traffic-control-layer.h"
 #include "ns3/double.h"
+#include "ns3/ns2-mobility-helper.h"
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -69,6 +70,10 @@ double enb_distance = 4000.0;
 int numberOfMecs = 4;
 double mec_distance = 3000.0;
 double numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
+
+//Mobility model variables. DO NOT change between experiments
+std::string traceFile = "handoverMobility.tcl";
+
 // -------------------------------------------------------
 
 InternetStackHelper internet;
@@ -256,7 +261,8 @@ void CreateRemoteHosts() {
     }
 }
 
-void InstallMobilityModels(){
+
+void InstallInfrastructureMobility(){
     // Install Mobility Model
     Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfEnbs; i++)
@@ -274,6 +280,12 @@ void InstallMobilityModels(){
     constantPositionMobility.Install(remoteHostContainer);
     constantPositionMobility.SetPositionAllocator(enbPositionAlloc);
     constantPositionMobility.Install(enbNodes);
+}
+
+
+void InstallConstantMobilityModels(){
+
+    InstallInfrastructureMobility();
 
     MobilityHelper ueMobility;
     ueMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
@@ -292,6 +304,52 @@ void InstallMobilityModels(){
             mm->SetVelocity({-27.8, 0, 0});
         }
     }
+}
+
+// Method used to verify InstallMobilityTraceModels(); copied from ns2-mobility-trace.cc
+// Prints actual position and velocity when a course change event occurs
+static void
+CourseChange (std::ostream *os, std::string foo, Ptr<const MobilityModel> mobility)
+{
+    Vector pos = mobility->GetPosition (); // Get position
+    Vector vel = mobility->GetVelocity (); // Get velocity
+
+    Ptr<Node> myNode;
+    NodeContainer::Iterator i;
+    for (i = ueNodes.Begin (); i != ueNodes.End (); ++i) {
+        Ptr<Node> currentNode = (*i);
+        if(currentNode->GetObject<MobilityModel>() == mobility){
+            myNode = currentNode;
+            break;
+        }
+    }
+
+    NS_LOG_DEBUG("Course change for node " << myNode->GetId() << ": position (" << pos.x << "," << pos.y <<
+                                             "), velocity (" << vel.x << "," << vel.y << ")");
+//    // Prints position and velocities
+//    *os << Simulator::Now () << " POS: x=" << pos.x << ", y=" << pos.y
+//        << ", z=" << pos.z << "; VEL:" << vel.x << ", y=" << vel.y
+//        << ", z=" << vel.z << std::endl;
+}
+
+void InstallTraceMobilityModels(){
+    InstallInfrastructureMobility();
+
+    Ns2MobilityHelper ns2 = Ns2MobilityHelper (traceFile);
+
+//    // Loggig stuff used for debug
+//    // open log file for output
+//    std::ofstream os;
+//    std::string logFile = "mobilityLogging.txt";
+//    os.open (logFile.c_str ());
+
+    ns2.Install(ueNodes.Begin(), ueNodes.End());
+
+//    // More logging stuff
+//    // Configure callback for logging
+//    Config::Connect ("/NodeList/*/$ns3::MobilityModel/CourseChange",
+//                     MakeBoundCallback (&CourseChange, &os));
+
 }
 
 void InstallLteDevices(){
@@ -551,7 +609,7 @@ main (int argc, char *argv[]) {
     ueNodes.Create(numberOfUes);
 
 
-    InstallMobilityModels();
+    InstallTraceMobilityModels();
 
     InstallLteDevices();
 
