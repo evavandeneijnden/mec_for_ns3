@@ -34,11 +34,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 .SetParent<Application> ()
                 .SetGroupName("Applications")
                 .AddConstructor<MecHoServerApplication> ()
-                .AddAttribute ("MaxPackets",
-                               "The maximum number of packets the application will send",
-                               UintegerValue (),
-                               MakeUintegerAccessor (&MecHoServerApplication::m_count),
-                               MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("UpdateInterval",
                                "The time to wait between serviceRequest packets",
                                UintegerValue (),
@@ -90,7 +85,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     MecHoServerApplication::MecHoServerApplication ()
     {
         NS_LOG_FUNCTION (this);
-        m_sent = 0;
         m_socket = 0;
         m_sendEvent = EventId ();
         m_transferEvent = EventId();
@@ -294,11 +288,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_txTrace(p);
             m_socket->Send(p);
 
-            ++m_sent;
-
-            if (m_sent < m_count) {
-                m_sendEvent = Simulator::Schedule(Seconds(m_updateInterval/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
-            }
+            m_sendEvent = Simulator::Schedule(Seconds(m_updateInterval/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
         }
 
          else {
@@ -331,7 +321,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             // so that tags added to the packet can be sent as well
             m_txTrace(p);
             m_socket->SendTo(p, 0, InetSocketAddress(newAddress, 1000));
-            ++m_sent;
         }
         else {
             m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this, newAddress);
@@ -347,8 +336,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         if(Simulator::Now() > noSendUntil){
             m_txTrace(packet);
             m_socket->SendTo(packet, 0, InetSocketAddress(echoAddress, 1000));
-
-            ++m_sent;
         }
         else {
             m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this, echoAddress, packet);
@@ -392,12 +379,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 switch(stoi(args[0])){
                     case 1: {
                         //service request from ue
-                        int ue_cellId = stoi(args[1]);
-                        uint32_t delay = 0; //in ms
-                        delay = m_expectedWaitingTime;
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedWaitingTime), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
                         break;
                     }
                     case 2:{

@@ -33,11 +33,6 @@ namespace ns3 {
                 .SetParent<Application> ()
                 .SetGroupName("Applications")
                 .AddConstructor<MecOrcApplication> ()
-                .AddAttribute ("MaxPackets",
-                               "The maximum number of packets the application will send",
-                               UintegerValue (100),
-                               MakeUintegerAccessor (&MecOrcApplication::m_count),
-                               MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("PacketSize", "Size of echo data in outbound packets",
                                UintegerValue (100),
                                MakeUintegerAccessor (&MecOrcApplication::m_packetSize),
@@ -79,7 +74,6 @@ namespace ns3 {
 
     MecOrcApplication::MecOrcApplication () {
         NS_LOG_FUNCTION (this);
-        m_sent = 0;
         m_socket = 0;
         m_sendUeEvent = EventId ();
         m_sendMecEvent = EventId ();
@@ -272,7 +266,6 @@ namespace ns3 {
         m_txTrace(p);
 
         m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
-        ++m_sent;
     }
 
     void
@@ -306,7 +299,6 @@ namespace ns3 {
         m_txTrace(p);
 
         m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
-        ++m_sent;
     }
 
     void

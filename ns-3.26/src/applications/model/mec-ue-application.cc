@@ -26,6 +26,7 @@
 #include "ns3/udp-socket-factory.h"
 #include <sstream>
 #include <fstream>
+#include <regex>
 
 namespace ns3 {
 
@@ -40,11 +41,6 @@ namespace ns3 {
                 .SetParent<Application> ()
                 .SetGroupName("Applications")
                 .AddConstructor<MecUeApplication> ()
-                .AddAttribute ("MaxPackets",
-                               "The maximum number of packets the application will send",
-                               UintegerValue (100),
-                               MakeUintegerAccessor (&MecUeApplication::m_count),
-                               MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("PacketSize",
                                "The size of payload of a packet",
                                UintegerValue (),
@@ -127,33 +123,7 @@ namespace ns3 {
         m_data_ping = 0;
         m_data_report = 0;
         m_requestBlocked = false;
-//        m_thisNetDevice = m_thisNode->GetDevice(0);
-
-//        std::vector<std::string> args;
-//        std::string tempString;
-//        NS_LOG_DEBUG("Length serverstring: " << m_serverString.length());
-//        for (int i = 0 ; i < int(m_serverString.length()); i++){
-//            char c = m_serverString[i];
-//            if(c == '/'){
-//            args.push_back(tempString);
-//            tempString = "";
-//            }
-//            else{
-//            tempString.push_back(c);
-//            }
-//        }
-//        for(int i = 0; i< int(args.size()) ; i++){
-//            NS_LOG_DEBUG("Args loop");
-//            Ipv4Address ipv4 = Ipv4Address();
-//            std::string addrString = args[i];
-//            char cstr[addrString.size() + 1];
-//            addrString.copy(cstr, addrString.size()+1);
-//            cstr[addrString.size()] = '\0';
-//            ipv4.Set(cstr);
-//            m_allServers.push_back(InetSocketAddress(ipv4,1001));
-//
-//
-//        }
+        myCellId = 0;
     }
 
     MecUeApplication::~MecUeApplication()
@@ -201,9 +171,8 @@ namespace ns3 {
             cstr[addrString.size()] = '\0';
             ipv4.Set(cstr);
             m_allServers.push_back(InetSocketAddress(ipv4, 1000));
-
-
         }
+        NS_ASSERT(m_allServers.size() == args.size());
 
         //Make ORC socket
         if (m_socket == 0) {
@@ -215,11 +184,13 @@ namespace ns3 {
         }
         m_socket->SetRecvCallback (MakeCallback (&MecUeApplication::HandleRead, this));
         m_socket->SetAllowBroadcast(false);
-
+        NS_ASSERT(m_socket);
 
         m_sendServiceEvent = Simulator::Schedule (Seconds(0.5), &MecUeApplication::SendFirstRequest, this);
         m_sendPingEvent = Simulator::Schedule(Seconds(0.5), &MecUeApplication::SendPing, this);
+
     }
+
 
 
     void
@@ -255,23 +226,26 @@ namespace ns3 {
         uint8_t *val = (uint8_t *) malloc(size + 1);
 
         int fillSize = filler.size();
+        NS_ASSERT(fillSize <= int(size));
 
-        if (fillSize >= int(size)) {
-            StopApplication();
-        } else {
-            result.append(filler);
-            for (int i = result.size(); i < int(size); i++) {
-                result.append("#");
-            }
-
-            std::memset(val, 0, size + 1);
-            std::memcpy(val, result.c_str(), size + 1);
+        result.append(filler);
+        for (int i = result.size(); i < int(size); i++) {
+            result.append("#");
         }
+        NS_ASSERT(result.find(filler) == 0);
+        std::string filler_part = result.substr(fillSize);
+        NS_ASSERT(filler_part.at(0) == '#');
+        for (int i = 1; i < int(filler_part.size()); i++){
+            NS_ASSERT(filler_part.at(i) == filler_part.at(i-1));
+        }
+        std::memset(val, 0, size + 1);
+        std::memcpy(val, result.c_str(), size + 1);
+
         return val;
     }
 
     bool MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
-        NS_LOG_FUNCTION(this);
+//        NS_LOG_FUNCTION(this);
         bool result = false;
 
         Ptr<LteEnbRrc> rrc = enb->GetRrc();
@@ -289,7 +263,7 @@ namespace ns3 {
     }
 
     uint16_t MecUeApplication::GetCellId(){
-        NS_LOG_FUNCTION(this);
+//        NS_LOG_FUNCTION(this);
 
         uint16_t result;
 
@@ -306,7 +280,11 @@ namespace ns3 {
             NS_LOG_ERROR("No CellID found");
             StopApplication();
         }
-        NS_LOG_DEBUG("UE has cellID " << result);
+        //result must be smaller than the number of eNBs, but larger than 0 (eNB cellIDs start at 1)
+        NS_ASSERT(result <= 3 && result > 0);
+        if (result != myCellId){
+            myCellId = result;
+        }
         return result;
 
     }
@@ -317,6 +295,9 @@ namespace ns3 {
 
         //Create packet payload
         std::string fillString = "8/" + std::to_string(GetCellId()) + "/";
+        std::regex re("8/[0-9]+/");
+        std::smatch match;
+        NS_ASSERT(std::regex_search(fillString, match, re));
         uint8_t *buffer = GetFilledString(fillString, m_size);
 
         //Create packet
@@ -326,13 +307,7 @@ namespace ns3 {
         m_txTrace (p);
         m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
-        ++m_sent;
-
-
-        if (m_sent < m_count)
-        {
-            m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-        }
+        m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
     }
 
     void
@@ -343,14 +318,20 @@ namespace ns3 {
         if (Simulator::Now() < m_noSendUntil){
             m_requestSent = Simulator::Now();
             m_requestBlocked = true;
+            Time waitingTime = m_noSendUntil - Simulator::Now();
+            m_sendServiceEvent = Simulator::Schedule (waitingTime, &MecUeApplication::SendServiceRequest, this);
 
         }
         else {
+            NS_ASSERT(Simulator::Now() >= m_noSendUntil);
             if (!m_requestBlocked){
                 m_requestSent = Simulator::Now();
             }
-            //Create packet payloadU
+            //Create packet payload
             std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
+            std::regex re("1/[0-9]+/");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(fillString, match, re));
             uint8_t *buffer = GetFilledString(fillString, m_size);
 
 
@@ -361,13 +342,7 @@ namespace ns3 {
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
-            ++m_sent;
-
-            if (m_sent < m_count)
-            {
-                m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-//                NextService(m_serviceInterval);
-            }
+            m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
 
             m_requestBlocked = false;
 
@@ -381,15 +356,20 @@ namespace ns3 {
         m_pingSent.clear();
         for (InetSocketAddress mec: m_allServers){
             if (Simulator::Now() < m_noSendUntil){
-                m_requestSent = Simulator::Now();
-                m_requestBlocked = true;
+//                m_requestSent = Simulator::Now();
+//                m_requestBlocked = true;
+                m_sendPingEvent = Simulator::Schedule(m_noSendUntil, &MecUeApplication::SendPing, this);
             }
             else {
+                NS_ASSERT(Simulator::Now() > m_noSendUntil);
                 m_pingSent.insert(std::pair<Ipv4Address, Time>(mec.GetIpv4(), Simulator::Now()));
 
                 //Create packet payload
                 std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/");
+                std::regex re("2/[0-9]+/");
+                std::smatch match;
+                NS_ASSERT(std::regex_search(fillString, match, re));
                 uint8_t *buffer = GetFilledString(fillString, m_size);
 
                 //Create packet
@@ -401,14 +381,10 @@ namespace ns3 {
                 //Determine correct server socket and send
                 m_socket->SendTo(p, 0, mec);
 
-                ++m_sent;
-
-                m_requestBlocked = false;
+//                m_requestBlocked = false;
             }
         }
-        if (m_sent < m_count) {
-            m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
-        }
+        m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
     }
 
     void
@@ -437,6 +413,9 @@ namespace ns3 {
         }
 
         payload.push_back('/'); //! is separator character for the measurementReport
+        std::regex re("3/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+![0-9]+!){" + std::to_string(m_allServers.size()) + "}/");
+        std::smatch match;
+        NS_ASSERT(std::regex_search(payload, match, re));
 
         uint8_t *buffer = GetFilledString(payload, m_size);
         //Create packet
@@ -482,9 +461,8 @@ namespace ns3 {
                 }
 
                 switch(std::stoi(args[0])){
-                    //Originally was message type 2, but this way packets can be echoed by the MEC for easier implementation
                     case 1: {
-                        //This is a service response from a MEC
+                        //This is a service response from my MEC
                         int64_t delay = (Simulator::Now() - m_requestSent).GetMilliSeconds() ;
                         NS_LOG_INFO("Delay," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
                         break;
@@ -528,7 +506,9 @@ namespace ns3 {
                         currentMecSocket = serverSocketMap.find(InetSocketAddress(m_mecIp, m_mecPort))->second;
 
                         //Set no-send period
-                        m_noSendUntil = Simulator::Now() + Time(args[3]);
+                        m_noSendUntil = Simulator::Now() + MilliSeconds(stoi(args[3]));
+                        NS_LOG_DEBUG("No send until: " << m_noSendUntil.GetSeconds());
+
                         break;
                     }
                 }

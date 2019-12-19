@@ -308,29 +308,29 @@ void InstallConstantMobilityModels(){
 
 // Method used to verify InstallMobilityTraceModels(); copied from ns2-mobility-trace.cc
 // Prints actual position and velocity when a course change event occurs
-static void
-CourseChange (std::ostream *os, std::string foo, Ptr<const MobilityModel> mobility)
-{
-    Vector pos = mobility->GetPosition (); // Get position
-    Vector vel = mobility->GetVelocity (); // Get velocity
-
-    Ptr<Node> myNode;
-    NodeContainer::Iterator i;
-    for (i = ueNodes.Begin (); i != ueNodes.End (); ++i) {
-        Ptr<Node> currentNode = (*i);
-        if(currentNode->GetObject<MobilityModel>() == mobility){
-            myNode = currentNode;
-            break;
-        }
-    }
-
-    NS_LOG_DEBUG("Course change for node " << myNode->GetId() << ": position (" << pos.x << "," << pos.y <<
-                                             "), velocity (" << vel.x << "," << vel.y << ")");
-//    // Prints position and velocities
-//    *os << Simulator::Now () << " POS: x=" << pos.x << ", y=" << pos.y
-//        << ", z=" << pos.z << "; VEL:" << vel.x << ", y=" << vel.y
-//        << ", z=" << vel.z << std::endl;
-}
+//static void
+//CourseChange (std::ostream *os, std::string foo, Ptr<const MobilityModel> mobility)
+//{
+//    Vector pos = mobility->GetPosition (); // Get position
+//    Vector vel = mobility->GetVelocity (); // Get velocity
+//
+//    Ptr<Node> myNode;
+//    NodeContainer::Iterator i;
+//    for (i = ueNodes.Begin (); i != ueNodes.End (); ++i) {
+//        Ptr<Node> currentNode = (*i);
+//        if(currentNode->GetObject<MobilityModel>() == mobility){
+//            myNode = currentNode;
+//            break;
+//        }
+//    }
+//
+//    NS_LOG_DEBUG("Course change for node " << myNode->GetId() << ": position (" << pos.x << "," << pos.y <<
+//                                             "), velocity (" << vel.x << "," << vel.y << ")");
+////    // Prints position and velocities
+////    *os << Simulator::Now () << " POS: x=" << pos.x << ", y=" << pos.y
+////        << ", z=" << pos.z << "; VEL:" << vel.x << ", y=" << vel.y
+////        << ", z=" << vel.z << std::endl;
+//}
 
 void InstallTraceMobilityModels(){
     InstallInfrastructureMobility();
@@ -399,40 +399,12 @@ void InstallUeNodes(){
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
         Ptr<NetDevice> ueDev = ueLteDevs.Get(i);
+//        Ptr<NetDevice> enbDev = enbLteDevs.Get(0);
         Ptr<NetDevice> enbDev = enbLteDevs.Get(i);
         lteHelper->Attach (ueDev, enbDev);
         // side effect: the default EPS bearer will be activated
     }
 
-// Old logging
-// NodeContainer::Iterator l;
-//    for (l = enbNodes.Begin (); l != enbNodes.End (); ++l) {
-//        Ptr<Ipv4> ipv4 = (*l)->GetObject<Ipv4>();
-//        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
-//        Ipv4Address address = iaddr.GetLocal();
-//        NS_LOG_DEBUG("Node (ENB) " << (*l)->GetId() << ", address: " << address);
-
-//        NS_LOG_DEBUG("FOR ENB (ID: " << (*l)->GetId() << ")");
-//        unsigned int t = 0;
-//        while(t < (*l)->GetNDevices()) {
-//            Ptr<NetDevice> netDevice = (*l)->GetDevice(t);
-//            NS_LOG_DEBUG("FOUND NETDEVICE:" << " ADDRESS " << (*netDevice).GetAddress());
-//            t++;
-//        }
-//
-//        Ptr<Ipv4> pgw_ipvs = (*l)->GetObject<Ipv4>();
-//        unsigned int pgw_interface = 0;
-//        while(pgw_interface < pgw_ipvs->GetNInterfaces()) {
-//            unsigned int n_address = pgw_ipvs->GetNAddresses(pgw_interface);
-//            NS_LOG_DEBUG("INTERFACE " << pgw_interface << " HAS " << n_address << " ADDRESSES ");
-//            unsigned int address_i = 0;
-//            while(address_i < n_address) {
-//                NS_LOG_DEBUG("HAS IP ADDRESS: " << pgw_ipvs->GetAddress(pgw_interface, address_i));
-//                address_i++;
-//            }
-//            pgw_interface++;
-//        }
-//    }
     NodeContainer::Iterator m;
     for (m = ueNodes.Begin (); m != ueNodes.End (); ++m) {
         Ptr<Ipv4> ipv4 = (*m)->GetObject<Ipv4>();
@@ -445,12 +417,6 @@ void InstallUeNodes(){
 
 void InstallApplications(){
     // Install and start applications on UEs and remote hosts
-
-    //UE applications: pass along argument for ORC inetsocketaddress; always first in remoteHost list?
-//        ApplicationContainer mecApps;
-//        ApplicationContainer orcApp;
-//        ApplicationContainer ueApps;
-
 
     //Install MEC applications
     //Make string of all MEC IP addresses (port is always 1001)
@@ -493,7 +459,6 @@ void InstallApplications(){
     }
     // trigger/hysterisis/delay_threshold
     ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
-    m_factory.Set ("MaxPackets", UintegerValue(10000));
     m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
     m_factory.Set ("AllServers", StringValue(mecString));
     m_factory.Set ("AllUes", StringValue(ueString));
@@ -518,7 +483,6 @@ void InstallApplications(){
         uint16_t cellId = netDevice->GetCellId();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecHoServerApplication");
-        m_factory.Set ("MaxPackets", UintegerValue(10000));
         m_factory.Set ("UpdateInterval", UintegerValue(MEC_UPDATE_INTERVAL));
         m_factory.Set ("PacketSize", UintegerValue(MEC_PACKET_SIZE));
         m_factory.Set ("OrcAddress", Ipv4AddressValue(orcAddress.GetIpv4()));
@@ -549,7 +513,6 @@ void InstallApplications(){
         Ipv4Address ipAddr = iaddr.GetLocal();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecUeApplication");
-        m_factory.Set("MaxPackets", UintegerValue(10000));
         m_factory.Set("PacketSize", UintegerValue(UE_PACKET_SIZE));
         m_factory.Set("ServiceInterval", TimeValue(MilliSeconds(SERVICE_INTERVAL)));
         m_factory.Set("PingInterval", TimeValue(MilliSeconds(PING_INTERVAL)));

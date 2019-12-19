@@ -138,6 +138,9 @@ namespace ns3 {
         std::vector<Ptr<LteEnbNetDevice>> m_enbDevices;
         uint64_t ueImsi;
 
+        uint16_t myCellId;
+        int requestCounter;
+
     };
 
 } // namespace ns3
