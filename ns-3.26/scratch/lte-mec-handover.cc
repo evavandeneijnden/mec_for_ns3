@@ -46,16 +46,17 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
 //Experiment settings. DO NOT change between experiments
-double simTime = 5; //in seconds
-int numberOfUes = 2;
+const double simTime = 5; //in seconds
+const int numberOfUes = 2;
 
 //Application-mimicking settings. DO NOT change between experiments
-uint32_t ORC_PACKET_SIZE = 512;
-uint32_t MEC_PACKET_SIZE = 512;
-uint32_t MEC_UPDATE_INTERVAL = 1000; // in ms
-uint32_t UE_PACKET_SIZE = 1024;
-uint32_t PING_INTERVAL = 1000; //in ms
-uint32_t SERVICE_INTERVAL = 100; //in ms
+const uint32_t ORC_PACKET_SIZE = 512;
+const uint32_t MEC_PACKET_SIZE = 512;
+const uint32_t UE_PACKET_SIZE = 1024;
+const uint32_t PING_INTERVAL = 1000; //in ms
+const uint32_t SERVICE_INTERVAL = 100; //in ms
+double MEC_RATE = 0.1; //in jobs per millisecond
+const uint32_t UE_HANDOVER_SIZE = 200;
 
 
 //Handover strategy settings. Change between experiments
@@ -483,8 +484,11 @@ void InstallApplications(){
         uint16_t cellId = netDevice->GetCellId();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecHoServerApplication");
-        m_factory.Set ("UpdateInterval", UintegerValue(MEC_UPDATE_INTERVAL));
+        m_factory.Set ("UpdateInterval", UintegerValue(SERVICE_INTERVAL));
+        m_factory.Set ("MeasurementInterval", UintegerValue(PING_INTERVAL));
         m_factory.Set ("PacketSize", UintegerValue(MEC_PACKET_SIZE));
+        m_factory.Set ("UeHandoverSize", UintegerValue(UE_HANDOVER_SIZE));
+        m_factory.Set ("MecRate", DoubleValue(MEC_RATE));
         m_factory.Set ("OrcAddress", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         m_factory.Set ("CellID", UintegerValue(cellId) );

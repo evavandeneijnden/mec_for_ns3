@@ -18,6 +18,8 @@
 
 #include "mec-ho-server-application.h"
 #include <sstream>
+#include <regex>
+#include "ns3/double.h"
 
 namespace ns3 {
 
@@ -39,10 +41,23 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                                UintegerValue (),
                                MakeUintegerAccessor (&MecHoServerApplication::m_updateInterval),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("MeasurementInterval",
+                               "The time to wait between ping packets",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecHoServerApplication::m_measurementInterval),
+                               MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("PacketSize", "Size of echo data in outbound packets",
                                UintegerValue (),
                                MakeUintegerAccessor (&MecHoServerApplication::m_packetSize),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("UeHandoverSize", "Amount of data to be transferred when a UE is handed over",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecHoServerApplication::UE_SIZE),
+                               MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("MecRate", "Number of jobs a server can handle per millisecond",
+                               DoubleValue (),
+                               MakeDoubleAccessor (&MecHoServerApplication::MEC_RATE),
+                               MakeDoubleChecker<double> ())
                 .AddAttribute ("OrcAddress", "InetSocketAddress of the orchestrator",
                                Ipv4AddressValue(),
                                MakeIpv4AddressAccessor (&MecHoServerApplication::m_orcAddress),
@@ -94,6 +109,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         m_noHandovers = 0;
         noSendUntil = Simulator::Now();
 
+        //Make all servers list
         std::vector<std::string> args;
         std::string tempString;
         for (int i = 0 ; i < int(m_serverString.length()); i++){
@@ -107,6 +123,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             }
         }
         for(int i = 0; i< int(args.size()) ; i++){
+            std::regex re("([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(args[i], match, re));
             Ipv4Address ipv4 = Ipv4Address();
             std::string addrString = args[i];
             char cstr[addrString.size() + 1];
@@ -115,6 +134,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             ipv4.Set(cstr);
             m_allServers.push_back(InetSocketAddress(ipv4, m_mecPort));
         }
+        NS_ASSERT(args.size() == m_allServers.size());
 
         //Make allUes list
         std::vector<std::string> args2;
@@ -130,6 +150,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             }
         }
         for(int i = 0; i< int(args2.size()) ; i++){
+            std::regex re("([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(args2[i], match, re));
             Ipv4Address ipv4 = Ipv4Address();
             std::string addrString = args[i];
             char cstr[addrString.size() + 1];
@@ -138,6 +161,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             ipv4.Set(cstr);
             m_allUes.push_back(InetSocketAddress(ipv4, m_uePort));
         }
+        NS_ASSERT(args2.size() == m_allUes.size());
     }
 
     MecHoServerApplication::~MecHoServerApplication()
@@ -159,6 +183,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
+        MSG_FREQ = 1/m_updateInterval;
+        MEAS_FREQ = 1000/m_measurementInterval;
+
         //Make ORC socket
         if (m_socket == 0)
         {
@@ -176,12 +203,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             Ptr<Socket> tempSocket = 0;
-            //InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 1000);
-//            tempSocket->Bind (local);
             InetSocketAddress inet = (*it);
-//            tempSocket->Connect (inet);
-//            tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
-//            tempSocket->SetAllowBroadcast (true);
             std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
             serverSocketMap.insert(newPair);
         }
@@ -190,13 +212,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
             TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
             Ptr<Socket> tempSocket = 0;
-//            tempSocket = Socket::CreateSocket (GetNode (), tid);
-            //InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 1000); //m_uePort);
-//            tempSocket->Bind (local);
             InetSocketAddress inet = (*it);
-//            tempSocket->Connect (inet);
-//            tempSocket->SetRecvCallback (MakeCallback (&MecHoServerApplication::HandleRead, this));
-//            tempSocket->SetAllowBroadcast (true);
             std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
             clientSocketMap.insert(newPair);
         }
@@ -214,21 +230,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_socket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
             m_socket = 0;
         }
-//
-//        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
-//        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
-//            Ptr<Socket> tempSocket = it->second;
-//            tempSocket->Close ();
-//            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-//            tempSocket = 0;
-//        }
-//        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2;
-//        for (it2 = clientSocketMap.begin(); it2 != clientSocketMap.end(); ++it2){
-//            Ptr<Socket> tempSocket = it2->second;
-//            //tempSocket->Close ();
-//            //tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-//            tempSocket = 0;
-//        }
 
         Simulator::Cancel (m_sendEvent);
         Simulator::Cancel(m_echoEvent);
@@ -243,37 +244,38 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         uint8_t *val = (uint8_t *) malloc(size + 1);
 
         int fillSize = filler.size();
+        NS_ASSERT(fillSize <= int(size));
 
-        if (fillSize >= int(size)) {
-            NS_LOG_ERROR("Filler for packet larger than packet size");
-            StopApplication();
-        } else {
-            result.append(filler);
-            for (int i = result.size(); i < int(size); i++) {
-                result.append("#");
-            }
-
-            std::memset(val, 0, size + 1);
-            std::memcpy(val, result.c_str(), size + 1);
+        result.append(filler);
+        for (int i = result.size(); i < int(size); i++) {
+            result.append("#");
         }
+        NS_ASSERT(result.find(filler) == 0);
+        std::string filler_part = result.substr(fillSize);
+        NS_ASSERT(filler_part.at(0) == '#');
+        for (int i = 1; i < int(filler_part.size()); i++){
+            NS_ASSERT(filler_part.at(i) == filler_part.at(i-1));
+        }
+        std::memset(val, 0, size + 1);
+        std::memcpy(val, result.c_str(), size + 1);
+
         return val;
     }
 
     void
     MecHoServerApplication::SendWaitingTimeUpdate (void) {
-        NS_LOG_FUNCTION(this << m_updateInterval);
+        NS_LOG_FUNCTION(this);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
-
-            //Calculate waiting time (in ms)
-            double serviceRho = (double)(myClients.size() * MSG_FREQ) / MEC_RATE;
-            double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * (1 / MEC_RATE);
-            double pingRho = (double)(m_noUes * MEAS_FREQ) / MEC_RATE;
-            double expectedPingWaitingTime = (double)(pingRho / (1 - pingRho)) * (1 / MEC_RATE);
+            //TODO Calculate waiting time (in ms)
+            double serviceRho = (double)(myClients.size() * MSG_FREQ) / (1 / MEC_RATE);
+            double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * MEC_RATE;
+            double pingRho = (double)(m_noUes * MEAS_FREQ) / (1 / MEC_RATE);
+            double expectedPingWaitingTime = (double)(pingRho / (1 - pingRho)) * MEC_RATE;
             double handoverFrequency = (double)m_noHandovers / ((Simulator::Now() - m_startTime).GetSeconds());
-            double handoverRho = (double)handoverFrequency / MEC_RATE;
-            double expectedHandoverWaitingTime = (double)(handoverRho / (1 - handoverRho)) * (1 / MEC_RATE);
+            double handoverRho = (double)handoverFrequency / (1 / MEC_RATE);
+            double expectedHandoverWaitingTime = (double)(handoverRho / (1 - handoverRho)) * MEC_RATE;
 //            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceWaitingTime:" << expectedServiceWaitingTime << ", pingRho: "
 //                          << pingRho << ", expectedPingWaitingTime: " << expectedPingWaitingTime << ",handoverFrequency: " << handoverFrequency
 //                          << ", handoverRho: " << handoverRho << ", expectedHandoverWaitingTime: " << expectedHandoverWaitingTime);
@@ -281,6 +283,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
             //Create packet payload
             std::string fillString = "5/" + std::to_string(m_expectedWaitingTime) + "/";
+            std::regex re("5/[1-9][0-9]*/");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(fillString, match, re));
+
             uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
             //Send packet
@@ -288,12 +294,11 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_txTrace(p);
             m_socket->Send(p);
 
-            m_sendEvent = Simulator::Schedule(Seconds(m_updateInterval/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
+            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
         }
 
          else {
-            m_sendEvent = Simulator::Schedule(Seconds(m_updateInterval/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
-//            SendWaitingTimeUpdate();
+            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
         }
 
 
@@ -313,6 +318,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             std::string addrString = ss.str();
 
             std::string fillString = "7/" + addrString + "/";
+            std::regex re("7/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(fillString, match, re));
+
             uint8_t *buffer = GetFilledString(fillString, UE_SIZE);
 
             //Create packet
@@ -386,8 +395,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                     }
                     case 2:{
                         // ping request from UE
-//                        NS_LOG_DEBUG("Received ping request from " << inet_from.GetIpv4());
-//                        NS_LOG_DEBUG("My cellID is " << m_cellId);
                         int ue_cellId = stoi(args[1]);
                         uint32_t delay = 0; //in ms
 
@@ -427,6 +434,8 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_newPort = newPort;
                         InetSocketAddress newInet = InetSocketAddress(m_newAddress, m_newPort);
 
+                        m_noHandovers++;
+
                         myClients.erase(newInet);
                         //Initiate handover
                         Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this, m_newAddress);
@@ -443,6 +452,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         ipv4.Set(cstr);
                         myClients.insert(InetSocketAddress(ipv4, 1000));
                         noSendUntil = Simulator::Now() + Seconds(m_expectedWaitingTime/1000);
+                        m_noHandovers++;
                         break;
                     }
                     case 8: {

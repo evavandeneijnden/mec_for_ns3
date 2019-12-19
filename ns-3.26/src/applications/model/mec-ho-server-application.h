@@ -73,6 +73,7 @@ namespace ns3 {
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         uint32_t m_updateInterval; //!< Packet inter-send time in ms
+        uint32_t m_measurementInterval;
 //        uint32_t m_size; //!< Size of the sent packet
 
         uint32_t m_sent; //!< Counter for sent packets
@@ -100,10 +101,10 @@ namespace ns3 {
         int m_packetSize;
         uint32_t m_cellId;
 
-         const double MSG_FREQ = 0.001; //in messages/millisecond
-         const double MEAS_FREQ = 0.001; //in measurements/millisecond
-         const double MEC_RATE = 0.1; //in jobs per millisecond
-         const int UE_SIZE = 200;
+       double MSG_FREQ; //in messages/millisecond
+       double MEAS_FREQ; //in measurements/millisecond
+       double MEC_RATE; //in jobs per millisecond
+       int UE_SIZE;
 
         uint32_t m_expectedWaitingTime = 0;
         int m_noUes ;
