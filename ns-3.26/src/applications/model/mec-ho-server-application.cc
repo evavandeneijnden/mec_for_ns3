@@ -37,9 +37,14 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 .SetGroupName("Applications")
                 .AddConstructor<MecHoServerApplication> ()
                 .AddAttribute ("UpdateInterval",
-                               "The time to wait between serviceRequest packets",
+                               "The time to wait between measurement updates",
                                UintegerValue (),
                                MakeUintegerAccessor (&MecHoServerApplication::m_updateInterval),
+                               MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("ServiceInterval",
+                               "The time to wait between service packets",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecHoServerApplication::m_serviceInterval),
                                MakeUintegerChecker<uint32_t> ())
                 .AddAttribute ("MeasurementInterval",
                                "The time to wait between ping packets",
@@ -108,6 +113,30 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
         m_noHandovers = 0;
         noSendUntil = Simulator::Now();
+    }
+
+    MecHoServerApplication::~MecHoServerApplication()
+    {
+        NS_LOG_FUNCTION (this);
+        m_socket = 0;
+
+    }
+
+    void
+    MecHoServerApplication::DoDispose (void)
+    {
+        NS_LOG_FUNCTION (this);
+        Application::DoDispose ();
+    }
+
+    void
+    MecHoServerApplication::StartApplication (void)
+    {
+        NS_LOG_FUNCTION (this);
+
+        MSG_FREQ = 1/m_serviceInterval;
+        MEAS_FREQ = 1000/m_measurementInterval;
+
 
         //Make all servers list
         std::vector<std::string> args;
@@ -154,7 +183,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             std::smatch match;
             NS_ASSERT(std::regex_search(args2[i], match, re));
             Ipv4Address ipv4 = Ipv4Address();
-            std::string addrString = args[i];
+            std::string addrString = args2[i];
             char cstr[addrString.size() + 1];
             addrString.copy(cstr, addrString.size()+1);
             cstr[addrString.size()] = '\0';
@@ -162,29 +191,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_allUes.push_back(InetSocketAddress(ipv4, m_uePort));
         }
         NS_ASSERT(args2.size() == m_allUes.size());
-    }
-
-    MecHoServerApplication::~MecHoServerApplication()
-    {
-        NS_LOG_FUNCTION (this);
-        m_socket = 0;
-
-    }
-
-    void
-    MecHoServerApplication::DoDispose (void)
-    {
-        NS_LOG_FUNCTION (this);
-        Application::DoDispose ();
-    }
-
-    void
-    MecHoServerApplication::StartApplication (void)
-    {
-        NS_LOG_FUNCTION (this);
-
-        MSG_FREQ = 1/m_updateInterval;
-        MEAS_FREQ = 1000/m_measurementInterval;
 
         //Make ORC socket
         if (m_socket == 0)
@@ -238,7 +244,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     uint8_t*
     MecHoServerApplication::GetFilledString (std::string filler, int size) {
         //dest can either be m_data_request or m_data_ping or m_data_report
-        NS_LOG_FUNCTION(this << filler);
+//        NS_LOG_FUNCTION(this << filler);
 
         std::string result;
         uint8_t *val = (uint8_t *) malloc(size + 1);
@@ -355,7 +361,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     void
     MecHoServerApplication::HandleRead (Ptr<Socket> socket)
     {
-        NS_LOG_FUNCTION (this << socket);
+//        NS_LOG_FUNCTION (this << socket);
         Ptr<Packet> packet;
         Address from;
         while ((packet = socket->RecvFrom (from)))
@@ -395,6 +401,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                     }
                     case 2:{
                         // ping request from UE
+                        NS_LOG_DEBUG("Received ping request with ID " << args[2] << " from " << inet_from.GetIpv4());
                         int ue_cellId = stoi(args[1]);
                         uint32_t delay = 0; //in ms
 

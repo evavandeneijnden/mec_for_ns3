@@ -109,6 +109,16 @@ namespace ns3 {
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecUeApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
+                .AddAttribute ("PingOffset",
+                               "Extra waiting time to avoid ping collisions",
+                               TimeValue (),
+                               MakeTimeAccessor (&MecUeApplication::m_pingOffset),
+                               MakeTimeChecker ())
+                .AddAttribute ("ServiceOffset",
+                               "Extra waiting time to avoid service collisions",
+                               TimeValue (),
+                               MakeTimeAccessor (&MecUeApplication::m_serviceOffset),
+                               MakeTimeChecker ())
         ;
         return tid;
     }
@@ -124,6 +134,7 @@ namespace ns3 {
         m_data_report = 0;
         m_requestBlocked = false;
         myCellId = 0;
+        requestCounter = 0;
     }
 
     MecUeApplication::~MecUeApplication()
@@ -186,8 +197,8 @@ namespace ns3 {
         m_socket->SetAllowBroadcast(false);
         NS_ASSERT(m_socket);
 
-        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5), &MecUeApplication::SendFirstRequest, this);
-        m_sendPingEvent = Simulator::Schedule(Seconds(0.5), &MecUeApplication::SendPing, this);
+        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
+        m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + m_pingOffset), &MecUeApplication::SendPing, this);
 
     }
 
@@ -283,6 +294,7 @@ namespace ns3 {
         //result must be smaller than the number of eNBs, but larger than 0 (eNB cellIDs start at 1)
         NS_ASSERT(result <= 3 && result > 0);
         if (result != myCellId){
+            NS_LOG_DEBUG("Node " << m_thisNode->GetId() << " switching from cell id " << myCellId << " to cell id " << result);
             myCellId = result;
         }
         return result;
@@ -349,11 +361,17 @@ namespace ns3 {
         }
     }
 
+    void MecUeApplication::SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec){
+        NS_LOG_FUNCTION(this);
+        m_socket->SendTo(p, 0, mec);
+    }
+
     void
     MecUeApplication::SendPing (void)
     {
-        NS_LOG_FUNCTION (this);
+        NS_LOG_FUNCTION (this << requestCounter);
         m_pingSent.clear();
+        int mecCounter = 0;
         for (InetSocketAddress mec: m_allServers){
             if (Simulator::Now() < m_noSendUntil){
 //                m_requestSent = Simulator::Now();
@@ -367,9 +385,11 @@ namespace ns3 {
                 //Create packet payload
                 std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/");
-                std::regex re("2/[0-9]+/");
-                std::smatch match;
-                NS_ASSERT(std::regex_search(fillString, match, re));
+                fillString.append(std::to_string(requestCounter) + "/");
+                //TODO reinstate this check after ID check is gone
+//                std::regex re("2/[0-9]+/");
+//                std::smatch match;
+//                NS_ASSERT(std::regex_search(fillString, match, re));
                 uint8_t *buffer = GetFilledString(fillString, m_size);
 
                 //Create packet
@@ -379,12 +399,13 @@ namespace ns3 {
                 m_txTrace(p);
 
                 //Determine correct server socket and send
-                m_socket->SendTo(p, 0, mec);
-
-//                m_requestBlocked = false;
+                Simulator::Schedule(MicroSeconds(10*mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
+                NS_LOG_DEBUG("Sent ping request with ID " << requestCounter << " to " << mec.GetIpv4());
             }
+            mecCounter++;
         }
         m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
+        requestCounter ++;
     }
 
     void
@@ -423,7 +444,7 @@ namespace ns3 {
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
-        m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
+        //m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
         ++m_sent;
     }
 

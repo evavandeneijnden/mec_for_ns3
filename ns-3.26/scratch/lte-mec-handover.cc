@@ -33,6 +33,7 @@
 #include "ns3/traffic-control-layer.h"
 #include "ns3/double.h"
 #include "ns3/ns2-mobility-helper.h"
+#include "ns3/packet.h"
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -52,9 +53,10 @@ const int numberOfUes = 2;
 //Application-mimicking settings. DO NOT change between experiments
 const uint32_t ORC_PACKET_SIZE = 512;
 const uint32_t MEC_PACKET_SIZE = 512;
-const uint32_t UE_PACKET_SIZE = 1024;
+const uint32_t UE_PACKET_SIZE = 256;
 const uint32_t PING_INTERVAL = 1000; //in ms
-const uint32_t SERVICE_INTERVAL = 100; //in ms
+const uint32_t SERVICE_INTERVAL = 500; //in ms
+const uint32_t WAITING_TIME_UPDATE_INTERVAL = 1000; //in ms
 double MEC_RATE = 0.1; //in jobs per millisecond
 const uint32_t UE_HANDOVER_SIZE = 200;
 
@@ -66,11 +68,11 @@ int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
 
 
 //do not change these values, they are hardcoded (for now)
-int numberOfEnbs = 3;
+unsigned int numberOfEnbs = 3;
 double enb_distance = 4000.0;
-int numberOfMecs = 4;
+unsigned int numberOfMecs = 4;
 double mec_distance = 3000.0;
-double numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
+unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
 //Mobility model variables. DO NOT change between experiments
 std::string traceFile = "handoverMobility.tcl";
@@ -94,6 +96,8 @@ NodeContainer enbNodes;
 std::map<Ptr<Node>, uint64_t> ueImsiMap;
 std::vector<Ipv4Address> ueAddresses;
 std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
+Ptr<Node> pgw;
+Ptr<Node> router;
 
 void printNodeConfiguration(std::string name, Ptr<Node> node) {
     NS_LOG_DEBUG("________FOR " << name << "(" << node->GetId() << ")___________");
@@ -165,11 +169,10 @@ void CreateRemoteHosts() {
 
     // NODES
         //Setup PGW
-    Ptr<Node> pgw = epcHelper->GetPgwNode();
+    pgw = epcHelper->GetPgwNode();
 
         //Setup router
-
-    Ptr<Node> router = CreateObject<Node>();
+    router = CreateObject<Node>();
     internet.Install(router);
 
         //Setup remote hosts
@@ -246,16 +249,6 @@ void CreateRemoteHosts() {
         n+=2;
     }
 
-//    NS_LOG_DEBUG("Show resulting configuration__________________");
-//    printNodeConfiguration("ROUTER", router);
-//    printNodeConfiguration("PGW", pgw);
-//
-//    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
-//        Ptr<Node> remote_host = remoteHosts[i_remote_host];
-//        printNodeConfiguration("Node " + std::to_string(remote_host->GetId()), remote_host);
-//    }
-
-
     for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
         Ptr<Node> remote_host = remoteHosts[i_remote_host];
         remoteHostContainer.Add(remote_host);
@@ -268,12 +261,12 @@ void InstallInfrastructureMobility(){
     Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfEnbs; i++)
     {
-        enbPositionAlloc->Add (Vector((0.5*enb_distance + enb_distance * i), 9, 0));
+        enbPositionAlloc->Add (Vector((0.5*enb_distance + enb_distance * i), 5, 0));
     }
     Ptr<ListPositionAllocator> mecPositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfMecs; i++)
     {
-        mecPositionAlloc->Add (Vector((0.5*mec_distance + i*mec_distance), 9, 0));
+        mecPositionAlloc->Add (Vector((0.5*mec_distance + i*mec_distance), 5, 0));
     }
     MobilityHelper constantPositionMobility;
     constantPositionMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -353,10 +346,26 @@ void InstallTraceMobilityModels(){
 
 }
 
+void InstallConstantPositionMobilityModels() {
+    InstallInfrastructureMobility();
+    Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
+    for (uint16_t i = 0; i < numberOfUes; i++)
+    {
+        int x_pos = (2000 + 10*i);
+        NS_LOG_DEBUG("x_pos is " << x_pos);
+        uePositionAlloc->Add (Vector(2000, 10, 0));
+    }
+    MobilityHelper constantPositionMobility;
+    constantPositionMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    constantPositionMobility.SetPositionAllocator(uePositionAlloc);
+    constantPositionMobility.Install(ueNodes);
+}
+
 void InstallLteDevices(){
     // Install LTE Devices to the nodes
 
     enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
+
     for (uint32_t i = 0; i < ueNodes.GetN(); i++){
         Ptr<Node> ue = ueNodes.Get(i);
         std::pair<Ptr<NetDevice>, uint64_t> installResult = lteHelper->InstallSingleUeDeviceMec(ue);
@@ -367,12 +376,12 @@ void InstallLteDevices(){
     }
 
     // Link each MEC to an eNB
-    for (int i = 0; i<numberOfEnbs; i++){
+    for (unsigned int i = 0; i < numberOfEnbs; i++){
         //Assign a MEC to each eNB
         mecEnbMap[remoteHostContainer.Get(i+1)] = enbNodes.Get(i);
     }
 
-    for (int i = numberOfEnbs; i<int(remoteHostContainer.GetN()); i++){
+    for (unsigned int i = numberOfEnbs; i < remoteHostContainer.GetN(); i++){
         //Assign every "extra" MEC to a random eNB
         int index = rand()%(numberOfEnbs);
         Ptr<Node> node = remoteHostContainer.Get(i);
@@ -401,7 +410,7 @@ void InstallUeNodes(){
     {
         Ptr<NetDevice> ueDev = ueLteDevs.Get(i);
 //        Ptr<NetDevice> enbDev = enbLteDevs.Get(0);
-        Ptr<NetDevice> enbDev = enbLteDevs.Get(i);
+        Ptr<NetDevice> enbDev = enbLteDevs.Get(0);
         lteHelper->Attach (ueDev, enbDev);
         // side effect: the default EPS bearer will be activated
     }
@@ -484,7 +493,8 @@ void InstallApplications(){
         uint16_t cellId = netDevice->GetCellId();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecHoServerApplication");
-        m_factory.Set ("UpdateInterval", UintegerValue(SERVICE_INTERVAL));
+        m_factory.Set ("UpdateInterval", UintegerValue(WAITING_TIME_UPDATE_INTERVAL));
+        m_factory.Set ("ServiceInterval", UintegerValue(SERVICE_INTERVAL));
         m_factory.Set ("MeasurementInterval", UintegerValue(PING_INTERVAL));
         m_factory.Set ("PacketSize", UintegerValue(MEC_PACKET_SIZE));
         m_factory.Set ("UeHandoverSize", UintegerValue(UE_HANDOVER_SIZE));
@@ -531,6 +541,8 @@ void InstallApplications(){
         m_factory.Set ("Enb2", PointerValue(enbLteDevs.Get(2)));
         m_factory.Set("Node", PointerValue(node));
         m_factory.Set("ueImsi", UintegerValue(ueImsi));
+        m_factory.Set("PingOffset", TimeValue(MilliSeconds(i*(PING_INTERVAL/numberOfUes))));
+        m_factory.Set("ServiceOffset", TimeValue(MilliSeconds(i*(SERVICE_INTERVAL/numberOfUes))));
 
 
         Ptr<Application> app = m_factory.Create<Application> ();
@@ -576,13 +588,40 @@ main (int argc, char *argv[]) {
     ueNodes.Create(numberOfUes);
 
 
-    InstallTraceMobilityModels();
+//    InstallTraceMobilityModels();
+//    InstallConstantMobilityModels();
+    InstallConstantPositionMobilityModels();
 
     InstallLteDevices();
 
     InstallUeNodes();
 
     InstallApplications();
+
+    Packet::EnablePrinting();
+
+//    NS_LOG_DEBUG("Show resulting configuration__________________");
+//    printNodeConfiguration("ROUTER", router);
+//    printNodeConfiguration("PGW", pgw);
+//
+//    // Remove hosts
+//    for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
+//        Ptr<Node> remote_host = remoteHostContainer.Get(i_remote_host);
+//        printNodeConfiguration("Node " + std::to_string(remote_host->GetId()), remote_host);
+//    }
+//
+//    // ENB
+//    for(unsigned int i_enb = 0; i_enb < numberOfEnbs; i_enb++) {
+//        Ptr<Node> enb = enbNodes.Get(i_enb);
+//        printNodeConfiguration("ENB " + std::to_string(enb->GetId()), enb);
+//    }
+//
+//    // UE
+//    for(unsigned int i_ue = 0; i_ue < numberOfUes; i_ue++) {
+//        Ptr<Node> ue = ueNodes.Get(i_ue);
+//        printNodeConfiguration("UE " + std::to_string(ue->GetId()), ue);
+//    }
+
 
     return StartSimulation();
 

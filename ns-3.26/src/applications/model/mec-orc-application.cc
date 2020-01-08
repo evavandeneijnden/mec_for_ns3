@@ -19,6 +19,7 @@
 #include "mec-orc-application.h"
 #include <sstream>
 #include <fstream>
+#include <regex>
 
 namespace ns3 {
 
@@ -80,50 +81,6 @@ namespace ns3 {
         m_data_ue = 0;
         m_data_mec = 0;
 
-        //Parse server string into InetSocketAddress vector
-        std::vector<std::string> args;
-        std::string tempString;
-        for (int i = 0 ; i < int(m_serverString.length()); i++){
-            char c = m_serverString[i];
-            if(c == '/'){
-                args.push_back(tempString);
-                tempString = "";
-            }
-            else{
-                tempString.push_back(c);
-            }
-        }
-        for(int i = 0; i< int(args.size()) ; i++){
-            Ipv4Address ipv4 = Ipv4Address();
-            std::string addrString = args[i];
-            char cstr[addrString.size() + 1];
-            addrString.copy(cstr, addrString.size()+1);
-            cstr[addrString.size()] = '\0';
-            ipv4.Set(cstr);
-            m_allServers.push_back(InetSocketAddress(ipv4, 1000));
-        }
-
-        std::vector<std::string> args2;
-        std::string tempString2;
-        for (int i = 0 ; i < int(m_serverString.length()); i++){
-            char c = m_serverString[i];
-            if(c == '/'){
-                args2.push_back(tempString2);
-                tempString2 = "";
-            }
-            else{
-                tempString2.push_back(c);
-            }
-        }
-        for(int i = 0; i< int(args2.size()) ; i++){
-            Ipv4Address ipv4 = Ipv4Address();
-            std::string addrString = args2[i];
-            char cstr[addrString.size() + 1];
-            addrString.copy(cstr, addrString.size()+1);
-            cstr[addrString.size()] = '\0';
-            ipv4.Set(cstr);
-            m_allUes.push_back(InetSocketAddress(ipv4, 1000));
-        }
     }
 
     MecOrcApplication::~MecOrcApplication() {
@@ -147,6 +104,59 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
+        //Parse server string into InetSocketAddress vector
+        std::vector<std::string> args;
+        std::string tempString;
+        for (int i = 0 ; i < int(m_serverString.length()); i++){
+            char c = m_serverString[i];
+            if(c == '/'){
+                args.push_back(tempString);
+                tempString = "";
+            }
+            else{
+                tempString.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args.size()) ; i++){
+            std::regex re("([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(args[i], match, re));
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allServers.push_back(InetSocketAddress(ipv4, 1000));
+        }
+        NS_ASSERT(args.size() == m_allServers.size());
+
+        std::vector<std::string> args2;
+        std::string tempString2;
+        for (int i = 0 ; i < int(m_serverString.length()); i++){
+            char c = m_serverString[i];
+            if(c == '/'){
+                args2.push_back(tempString2);
+                tempString2 = "";
+            }
+            else{
+                tempString2.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args2.size()) ; i++){
+            std::regex re("([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(args2[i], match, re));
+            Ipv4Address ipv4 = Ipv4Address();
+            std::string addrString = args2[i];
+            char cstr[addrString.size() + 1];
+            addrString.copy(cstr, addrString.size()+1);
+            cstr[addrString.size()] = '\0';
+            ipv4.Set(cstr);
+            m_allUes.push_back(InetSocketAddress(ipv4, 1000));
+        }
+        NS_ASSERT(args2.size() == m_allUes.size());
+
         TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
         Ptr<Socket> tempSocket;
         tempSocket = Socket::CreateSocket (GetNode(), tid);
@@ -156,56 +166,12 @@ namespace ns3 {
         tempSocket->SetRecvCallback(MakeCallback(&MecOrcApplication::HandleRead, this));
         tempSocket->SetAllowBroadcast(false);
         m_socket = tempSocket;
-
-//        //Make socket for each server
-//        for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
-//            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-//            Ptr<Socket> tempSocket;
-//            InetSocketAddress inet = (*it);
-//            tempSocket = Socket::CreateSocket (GetNode(), tid);
-//            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny(), m_mecPort);
-//            tempSocket->Bind(local);
-//            tempSocket->Connect(inet);
-//            tempSocket->SetRecvCallback(MakeCallback(&MecOrcApplication::HandleRead, this));
-//            tempSocket->SetAllowBroadcast (true);
-//            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet, tempSocket);
-//            serverSocketMap.insert(newPair);
-//        }
-//
-//        //Make socket for each UE
-//        for (std::vector<InetSocketAddress>::iterator it = m_allUes.begin(); it != m_allUes.end(); ++it){
-//            TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-//            Ptr<Socket> tempSocket;
-//            InetSocketAddress inet2 = (*it);
-//            tempSocket = Socket::CreateSocket (GetNode (), tid);
-//            InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_uePort);
-//            tempSocket->Bind (local);
-//            tempSocket->Connect (inet2);
-//            tempSocket->SetRecvCallback (MakeCallback (&MecOrcApplication::HandleRead, this));
-//            tempSocket->SetAllowBroadcast (true);
-//            std::pair<InetSocketAddress, Ptr<Socket>>  newPair = std::pair<InetSocketAddress, Ptr<Socket>>(inet2, tempSocket);
-//            ueSocketMap.insert(newPair);
-//        }
     }
 
     void
     MecOrcApplication::StopApplication () {
         NS_LOG_FUNCTION (this);
 
-//        std::map<InetSocketAddress, Ptr<Socket>>::iterator it;
-//        for (it = serverSocketMap.begin(); it != serverSocketMap.end(); ++it){
-//            Ptr<Socket> tempSocket = it->second;
-//            tempSocket->Close ();
-//            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-//            tempSocket = 0;
-//        }
-//        std::map<InetSocketAddress,Ptr<Socket>>::iterator it2;
-//        for (it2 = ueSocketMap.begin(); it2 != ueSocketMap.end(); ++it2){
-//            Ptr<Socket> tempSocket = it2->second;
-//            tempSocket->Close ();
-//            tempSocket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-//            tempSocket = 0;
-//        }
         m_socket->Close();
         m_socket->SetRecvCallback(MakeNullCallback<void, Ptr<Socket>> ());
 
@@ -220,19 +186,21 @@ namespace ns3 {
         uint8_t *val = (uint8_t *) malloc(size + 1);
 
         int fillSize = filler.size();
+        NS_ASSERT(fillSize <= int(size));
 
-        if (fillSize >= int(size)) {
-            NS_LOG_ERROR("Filler for packet larger than packet size");
-            StopApplication();
-        } else {
-            result.append(filler);
-            for (int i = result.size(); i < int(size); i++) {
-                result.append("#");
-            }
-
-            std::memset(val, 0, size + 1);
-            std::memcpy(val, result.c_str(), size + 1);
+        result.append(filler);
+        for (int i = result.size(); i < int(size); i++) {
+            result.append("#");
         }
+        NS_ASSERT(result.find(filler) == 0);
+        std::string filler_part = result.substr(fillSize);
+        NS_ASSERT(filler_part.at(0) == '#');
+        for (int i = 1; i < int(filler_part.size()); i++){
+            NS_ASSERT(filler_part.at(i) == filler_part.at(i-1));
+        }
+        std::memset(val, 0, size + 1);
+        std::memcpy(val, result.c_str(), size + 1);
+
         return val;
     }
 
@@ -257,6 +225,10 @@ namespace ns3 {
         int handoverTime = waitingTimes.find(currentMecAddress)->second + waitingTimes.find(newMecAddress)->second;
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
+        std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[1-9][0-9]+/");
+        std::smatch match;
+        NS_ASSERT(std::regex_search(fillString, match, re));
+
         uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
         //Create packet
@@ -290,6 +262,9 @@ namespace ns3 {
 
         //Create packet payload
         std::string fillString = "4/" + ueAddrString + "/" + std::to_string(ueAddress.GetPort()) + "/" + newMecAddrString + "/" + std::to_string(newMecAddress.GetPort()) + "/";
+        std::regex re("4/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/");
+        std::smatch match;
+        NS_ASSERT(std::regex_search(fillString, match, re));
         uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
         //Create packet
@@ -335,6 +310,7 @@ namespace ns3 {
                 //Choose which type of message this is based on args[0]
                 switch(stoi(args[0])){
                     case 3: {
+                        NS_LOG_DEBUG("Measurement report");
                         //This is a measurement report from a UE
                         Ipv4Address currentMecAddr = Ipv4Address();
                         currentMecAddr.Set(args[1].c_str());
@@ -354,13 +330,16 @@ namespace ns3 {
                                 tempString2.push_back(c);
                             }
                         }
+                        NS_ASSERT(map_args.size() == (2*m_allServers.size()));
                         for(int i = 0; i < int(map_args.size()); i = i+2){
                             Ipv4Address address =  Ipv4Address();
                             address.Set((map_args[i]).c_str());
                             delayMap.insert(std::pair<Ipv4Address, int>(address, stoi(map_args[i+1])));
                         }
+                        NS_ASSERT(delayMap.size() == m_allServers.size());
 
                         int currentDelay = delayMap.find(currentMecAddr)->second;
+                        NS_ASSERT(currentDelay != 0);
 
                         //find current delay
                         int optimalDelay = currentDelay;

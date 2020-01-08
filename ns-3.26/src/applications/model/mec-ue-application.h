@@ -94,6 +94,8 @@ namespace ns3 {
         uint16_t GetCellId(void);
         bool CheckEnb(Ptr<LteEnbNetDevice> enb);
 
+        void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec);
+
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         Time m_serviceInterval; //!< Packet inter-send time
@@ -137,9 +139,10 @@ namespace ns3 {
         Ptr<LteEnbNetDevice> m_enb2;
         std::vector<Ptr<LteEnbNetDevice>> m_enbDevices;
         uint64_t ueImsi;
-
         uint16_t myCellId;
         int requestCounter;
+        Time m_pingOffset;
+        Time m_serviceOffset;
 
     };
 

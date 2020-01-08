@@ -73,6 +73,7 @@ namespace ns3 {
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         uint32_t m_updateInterval; //!< Packet inter-send time in ms
+        uint32_t m_serviceInterval;
         uint32_t m_measurementInterval;
 //        uint32_t m_size; //!< Size of the sent packet
 
