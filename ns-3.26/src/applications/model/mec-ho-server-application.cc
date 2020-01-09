@@ -20,6 +20,7 @@
 #include <sstream>
 #include <regex>
 #include "ns3/double.h"
+#include "ns3/vector.h"
 
 namespace ns3 {
 
@@ -94,6 +95,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 .AddAttribute ("NumberOfUes", "Number of UEs in the system",
                                UintegerValue(),
                                MakeUintegerAccessor (&MecHoServerApplication::m_noUes),
+                               MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("Metric", "Metric to base handover decision on",
+                               UintegerValue(),
+                               MakeUintegerAccessor (&MecHoServerApplication::metric),
                                MakeUintegerChecker<uint32_t> ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecHoServerApplication::m_txTrace),
@@ -203,7 +208,11 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         }
         m_socket->SetRecvCallback(MakeCallback (&MecHoServerApplication::HandleRead, this));
         m_socket->SetAllowBroadcast(false);
-        SendWaitingTimeUpdate();
+        //Send waitingtimeupdates only if metric is 0 --> delay
+        if (metric == 0){
+            SendWaitingTimeUpdate();
+        }
+
 
         //Make socket for each server
         for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
@@ -274,7 +283,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
-            //TODO Calculate waiting time (in ms)
             double serviceRho = (double)(myClients.size() * MSG_FREQ) / (1 / MEC_RATE);
             double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * MEC_RATE;
             double pingRho = (double)(m_noUes * MEAS_FREQ) / (1 / MEC_RATE);

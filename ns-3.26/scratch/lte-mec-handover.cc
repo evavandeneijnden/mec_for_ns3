@@ -34,6 +34,7 @@
 #include "ns3/double.h"
 #include "ns3/ns2-mobility-helper.h"
 #include "ns3/packet.h"
+#include "ns3/vector.h"
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -61,18 +62,21 @@ double MEC_RATE = 0.1; //in jobs per millisecond
 const uint32_t UE_HANDOVER_SIZE = 200;
 
 
-//Handover strategy settings. Change between experiments
-int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
-double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
-int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
-
-
 //do not change these values, they are hardcoded (for now)
 unsigned int numberOfEnbs = 3;
 double enb_distance = 4000.0;
 unsigned int numberOfMecs = 3;
 double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
+
+
+//Handover strategy settings. Change between experiments
+int METRIC = 1; //Valid options are 0 for delay, 1 for distance
+int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
+double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
+int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
+int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the distance between MECs, switch. In meters.
+
 
 //Mobility model variables. DO NOT change between experiments
 std::string traceFile = "handoverMobility.tcl";
@@ -98,6 +102,7 @@ std::vector<Ipv4Address> ueAddresses;
 std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
 Ptr<Node> pgw;
 Ptr<Node> router;
+std::string mecPositions;
 
 void printNodeConfiguration(std::string name, Ptr<Node> node) {
     NS_LOG_DEBUG("________FOR " << name << "(" << node->GetId() << ")___________");
@@ -257,7 +262,6 @@ void CreateRemoteHosts() {
     }
 }
 
-
 void InstallInfrastructureMobility(){
     // Install Mobility Model
     Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
@@ -268,7 +272,11 @@ void InstallInfrastructureMobility(){
     Ptr<ListPositionAllocator> mecPositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfMecs; i++)
     {
-        mecPositionAlloc->Add (Vector((0.5*mec_distance + i*mec_distance), 4, 0));
+        int x = (0.5*mec_distance + i*mec_distance);
+        int y = 4;
+        int z = 0;
+        mecPositionAlloc->Add (Vector(x, y, z));
+        mecPositions.append(std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z) + ",/");
     }
     MobilityHelper constantPositionMobility;
     constantPositionMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -302,6 +310,7 @@ void InstallConstantMobilityModels(){
     }
 }
 
+//TODO mobility example stuff is here
 // Method used to verify InstallMobilityTraceModels(); copied from ns2-mobility-trace.cc
 // Prints actual position and velocity when a course change event occurs
 //static void
@@ -467,7 +476,6 @@ void InstallApplications(){
         TypeId temp = TypeId::GetRegistered(i);
         std::string name = temp.GetName();
     }
-    // trigger/hysterisis/delay_threshold
     ObjectFactory m_factory = ObjectFactory("ns3::MecOrcApplication");
     m_factory.Set ("PacketSize", UintegerValue(ORC_PACKET_SIZE));
     m_factory.Set ("AllServers", StringValue(mecString));
@@ -477,6 +485,8 @@ void InstallApplications(){
     m_factory.Set ("Trigger", UintegerValue(TRIGGER));
     m_factory.Set ("Hysteresis", DoubleValue(HYSTERESIS));
     m_factory.Set ("DelayThreshold", UintegerValue(DELAY_THRESHOLD));
+    m_factory.Set ("MecPositions", StringValue(mecPositions));
+    m_factory.Set ("DistanceThreshold", UintegerValue(DISTANCE_THRESHOLD));
 
     Ptr<Application> app = m_factory.Create<Application> ();
     orcNode->AddApplication (app);
@@ -507,6 +517,7 @@ void InstallApplications(){
         m_factory.Set("AllUes", StringValue(ueString));
         m_factory.Set("UePort", UintegerValue(1000));
         m_factory.Set("NumberOfUes", UintegerValue(numberOfUes));
+        m_factory.Set ("Metric", UintegerValue(METRIC));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
@@ -543,6 +554,7 @@ void InstallApplications(){
         m_factory.Set("ueImsi", UintegerValue(ueImsi));
         m_factory.Set("PingOffset", TimeValue(MilliSeconds(i*(PING_INTERVAL/numberOfUes))));
         m_factory.Set("ServiceOffset", TimeValue(MilliSeconds(i*(SERVICE_INTERVAL/numberOfUes))));
+        m_factory.Set("Metric", UintegerValue(METRIC));
 
 
         Ptr<Application> app = m_factory.Create<Application> ();

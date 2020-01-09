@@ -20,6 +20,7 @@
 #include <sstream>
 #include <fstream>
 #include <regex>
+#include <math.h>
 
 namespace ns3 {
 
@@ -66,6 +67,14 @@ namespace ns3 {
                                UintegerValue (),
                                MakeUintegerAccessor (&MecOrcApplication::delay_threshold),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("DistanceThreshold", "Minimum distance in meters before handover can be considered",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecOrcApplication::distance_threshold),
+                               MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("MecPositions", "String of the positions of all MECs",
+                               StringValue(),
+                               MakeStringAccessor (&MecOrcApplication::mecPositions),
+                               MakeStringChecker())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecOrcApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
@@ -155,6 +164,43 @@ namespace ns3 {
             ipv4.Set(cstr);
             m_allUes.push_back(InetSocketAddress(ipv4, 1000));
         }
+
+
+        std::vector<std::string> args3;
+        std::string tempString3;
+        for (int i = 0 ; i < int(mecPositions.length()); i++){
+            char c = mecPositions[i];
+            if(c == '/'){
+                args3.push_back(tempString3);
+                tempString3 = "";
+            }
+            else{
+                tempString3.push_back(c);
+            }
+        }
+        for(int i = 0; i< int(args3.size()) ; i++){
+            //TODO add validation here
+            std::string currentStringVector = args3[i];
+
+            std::vector<std::string> args4;
+            std::string tempString4;
+            for(int j = 0; j<int(currentStringVector.size()); j++){
+                char c = currentStringVector[j];
+                if(c == ','){
+                    args4.push_back(tempString4);
+                    tempString4 = "";
+                }
+                else{
+                    tempString4.push_back(c);
+                }
+            }
+            Vector mecPosition = Vector(std::stoi(args4[0]), std::stoi(args4[1]), std::stoi(args4[2]));
+            allMecPositions.push_back(mecPosition);
+        }
+
+
+
+
         NS_ASSERT(args2.size() == m_allUes.size());
 
         TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
@@ -310,6 +356,7 @@ namespace ns3 {
                 //Choose which type of message this is based on args[0]
                 switch(stoi(args[0])){
                     case 3: {
+                        //Metric is delay and measurement report has come in
                         NS_LOG_DEBUG("Measurement report");
                         //This is a measurement report from a UE
                         Ipv4Address currentMecAddr = Ipv4Address();
@@ -360,13 +407,13 @@ namespace ns3 {
                                     triggerEquation = (delay<optimalDelay && (delay < currentDelay*(1-hysteresis)));
                                     break;
                                 case 2:
-                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay - delay_threshold));
+                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay - (int)delay_threshold));
                                     break;
                                 case 3:
-                                    triggerEquation = delay<optimalDelay && (delay < currentDelay*(1-hysteresis)) && (delay < currentDelay - delay_threshold);
+                                    triggerEquation = delay<optimalDelay && (delay < currentDelay*(1-hysteresis)) && (delay < currentDelay - (int)delay_threshold);
                                     break;
                                 default:
-                                    NS_LOG_ERROR("Unsupported message type");
+                                    NS_LOG_ERROR("Unsupported trigger type");
                                     StopApplication();
                             }
                             if (triggerEquation){
@@ -396,6 +443,7 @@ namespace ns3 {
                         break;
                     }
                     case 5: {
+                        NS_LOG_DEBUG("Waiting time update");
                         int newWaitingTime = stoi(args[1]);
                         InetSocketAddress sendAddress = InetSocketAddress::ConvertFrom(from);
 
@@ -407,6 +455,81 @@ namespace ns3 {
                             //New MEC, add entry in map
                             waitingTimes.insert(std::pair<InetSocketAddress, int>(sendAddress, newWaitingTime));
 
+                        }
+                        break;
+                    }
+                    case 9: {
+                        NS_LOG_DEBUG("Location update");
+                        //Metric is distance; position update from a UE has just come in
+                        Vector uePosition = Vector(std::stoi(args[2]), std::stoi(args[3]),0);
+
+                        //Calculate distances
+                        std::vector<double> distances;
+                        for(int i = 0; i<int(allMecPositions.size()); i++){
+                            Vector mecPosition = allMecPositions[i];
+                            double distanceSum = pow((double)(mecPosition.x - uePosition.x), 2.0) - pow((double)(mecPosition.y - uePosition.y), 2.0);
+                            double distance = sqrt(distanceSum);
+                            distances.push_back(distance);
+                        }
+
+                        //Get UEs current MEC address index
+                        Ipv4Address currentMecAddr = Ipv4Address();
+                        currentMecAddr.Set(args[1].c_str());
+
+                        //Get UEs current distance from MEC
+                        double currentDistance = 0;
+                        int currentMecIndex = -1;
+
+                        for(int i  = 0; i < int(m_allServers.size()); i++) {
+                            if(m_allServers[i].GetIpv4() == currentMecAddr) {
+                                currentDistance = distances[i];
+                                currentMecIndex = i;
+                                break;
+                            }
+                        }
+                        NS_ASSERT(currentDistance != 0);
+                        NS_ASSERT(currentMecIndex != -1);
+
+                        double optimalDistance = currentDistance;
+                        int bestMecIndex = currentMecIndex;
+
+                        //Find best MEC
+                        for (int i = 0 ; i<int(distances.size()); i++){
+                            double distance = distances[i];
+
+                            bool triggerEquation;
+
+                            switch(trigger){
+                                case 0:
+                                    triggerEquation = (distance<optimalDistance);
+                                    break;
+                                case 1:
+                                    triggerEquation = (distance<optimalDistance && (distance < currentDistance*(1-hysteresis)));
+                                    break;
+                                case 2:
+                                    //TODO add argument for distance threshold
+                                    triggerEquation = (distance<optimalDistance && (distance < currentDistance - distance_threshold));
+                                    break;
+                                case 3:
+                                    triggerEquation = distance<optimalDistance && (distance < currentDistance*(1-hysteresis)) && (distance < currentDistance - distance_threshold);
+                                    break;
+                                default:
+                                    NS_LOG_ERROR("Unsupported trigger type");
+                                    StopApplication();
+                            }
+                            if (triggerEquation){
+                                optimalDistance = distance;
+                                bestMecIndex = i;
+                            }
+                        }
+
+                        if (bestMecIndex != currentMecIndex){
+                            //Initiate a handover to bestMec
+                            InetSocketAddress ueAddress = InetSocketAddress::ConvertFrom(from);
+
+                            InetSocketAddress newMecAddress = m_allServers[bestMecIndex];
+                            SendUeHandover(ueAddress, newMecAddress, currentMecAddr);
+                            SendMecHandover(ueAddress, newMecAddress);
                         }
                         break;
                     }

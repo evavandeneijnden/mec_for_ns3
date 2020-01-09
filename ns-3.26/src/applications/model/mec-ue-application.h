@@ -95,6 +95,7 @@ namespace ns3 {
         bool CheckEnb(Ptr<LteEnbNetDevice> enb);
 
         void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec);
+        void SendPosition(void);
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send
@@ -108,6 +109,7 @@ namespace ns3 {
         Ptr<Socket> m_socket; //!< Socket
         EventId m_sendPingEvent;
         EventId m_sendServiceEvent;
+        EventId m_sendPositionEvent;
         uint8_t *m_data_request;
         uint8_t *m_data_ping;
         uint8_t *m_data_report;
@@ -143,6 +145,7 @@ namespace ns3 {
         int requestCounter;
         Time m_pingOffset;
         Time m_serviceOffset;
+        uint32_t metric;
 
     };
 

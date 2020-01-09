@@ -27,6 +27,7 @@
 #include <sstream>
 #include <fstream>
 #include <regex>
+#include "ns3/vector.h"
 
 namespace ns3 {
 
@@ -119,6 +120,10 @@ namespace ns3 {
                                TimeValue (),
                                MakeTimeAccessor (&MecUeApplication::m_serviceOffset),
                                MakeTimeChecker ())
+                .AddAttribute ("Metric", "Metric used for handover decision making",
+                               UintegerValue (),
+                               MakeUintegerAccessor (&MecUeApplication::metric),
+                               MakeUintegerChecker<uint32_t> ())
         ;
         return tid;
     }
@@ -126,9 +131,9 @@ namespace ns3 {
     MecUeApplication::MecUeApplication ()
     {
         NS_LOG_FUNCTION (this);
-        m_sent = 0;
         m_sendPingEvent = EventId ();
         m_sendServiceEvent = EventId ();
+        m_sendPositionEvent = EventId();
         m_data_request = 0;
         m_data_ping = 0;
         m_data_report = 0;
@@ -198,7 +203,17 @@ namespace ns3 {
         NS_ASSERT(m_socket);
 
         m_sendServiceEvent = Simulator::Schedule (Seconds(0.5) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
-        m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + m_pingOffset), &MecUeApplication::SendPing, this);
+        if (metric == 0){
+            m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + m_pingOffset), &MecUeApplication::SendPing, this);
+        }
+        else if (metric == 1){
+            m_sendPositionEvent = Simulator::Schedule((Seconds(0.5) + m_pingOffset), &MecUeApplication::SendPosition, this);
+        }
+        else {
+            NS_LOG_ERROR("An invalid metric parameter was passed to the UE");
+            StopApplication();
+        }
+
 
     }
 
@@ -226,6 +241,7 @@ namespace ns3 {
 
         Simulator::Cancel (m_sendPingEvent);
         Simulator::Cancel (m_sendServiceEvent);
+        Simulator::Cancel (m_sendPositionEvent);
     }
 
 
@@ -360,8 +376,33 @@ namespace ns3 {
 
         }
     }
+    void
+    MecUeApplication::SendPosition(void){
+        NS_LOG_FUNCTION(this);
 
-    void MecUeApplication::SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec){
+        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
+        Vector myPosition = myMobility->GetPosition();
+
+        std::stringstream ss;
+        std::stringstream os;
+        m_mecIp.Print(os);
+        ss << os.rdbuf();
+        std::string mecString = ss.str();
+
+        //TODO add validation below
+        std::string fillString = "9/" + mecString + "/" + std::to_string(myPosition.x) + "/" + std::to_string(myPosition.y) + "/";
+        uint8_t *buffer = GetFilledString(fillString, m_size);
+
+        //Create packet
+        Ptr<Packet> p = Create<Packet> (buffer, m_size);
+        m_txTrace (p);
+        m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
+
+        m_sendPositionEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPosition, this);
+    }
+
+    void
+    MecUeApplication::SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec){
         NS_LOG_FUNCTION(this);
         m_socket->SendTo(p, 0, mec);
     }
@@ -444,8 +485,7 @@ namespace ns3 {
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
-        //m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
-        ++m_sent;
+        m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
     }
 
     void

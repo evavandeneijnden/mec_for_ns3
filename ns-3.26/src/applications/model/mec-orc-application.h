@@ -35,6 +35,7 @@
 #include "ns3/string.h"
 #include "ns3/double.h"
 #include "ns3/trace-source-accessor.h"
+#include "ns3/vector.h"
 
 namespace ns3 {
 
@@ -95,7 +96,9 @@ namespace ns3 {
 
         char trigger;
         double hysteresis;
-        int delay_threshold;
+        uint32_t delay_threshold;
+        uint32_t distance_threshold;
+        std::string mecPositions;
 
         std::string m_serverString;
         std::string m_ueString;
@@ -103,6 +106,7 @@ namespace ns3 {
         uint32_t m_mecPort;
         std::vector<InetSocketAddress> m_allServers;
         std::vector<InetSocketAddress> m_allUes;
+        std::vector<Vector> allMecPositions;
         std::map<InetSocketAddress, int> waitingTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
 
     };
