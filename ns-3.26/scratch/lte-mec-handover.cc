@@ -70,8 +70,8 @@ int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
 //do not change these values, they are hardcoded (for now)
 unsigned int numberOfEnbs = 3;
 double enb_distance = 4000.0;
-unsigned int numberOfMecs = 4;
-double mec_distance = 3000.0;
+unsigned int numberOfMecs = 3;
+double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
 //Mobility model variables. DO NOT change between experiments
@@ -198,12 +198,14 @@ void CreateRemoteHosts() {
                                                       "1.0.0.3",
                                                       "1.0.0.5",
                                                       "1.0.0.7",
-                                                      "1.0.0.9"};
+//                                                      "1.0.0.9"
+                                                        };
     std::vector<std::string> router_addresses = {"1.0.0.2",
                                                  "1.0.0.4",
                                                  "1.0.0.6",
                                                  "1.0.0.8",
-                                                 "1.0.0.10"};
+//                                                 "1.0.0.10"
+                                                };
     for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
         Ptr<Node> remote_host = remoteHosts[i_remote_host];
 
@@ -227,7 +229,7 @@ void CreateRemoteHosts() {
     routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.3"), Ipv4Address("1.0.0.3"), 3);
     routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.5"), Ipv4Address("1.0.0.5"), 4);
     routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.7"), Ipv4Address("1.0.0.7"), 5);
-    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.9"), Ipv4Address("1.0.0.9"), 6);
+//    routerStaticRouting->AddHostRouteTo(Ipv4Address("1.0.0.9"), Ipv4Address("1.0.0.9"), 6);
 
         //Router to PGW
     routerStaticRouting->AddNetworkRouteTo(Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.255.0.0"), Ipv4Address("1.0.0.11"), 1);
@@ -266,7 +268,7 @@ void InstallInfrastructureMobility(){
     Ptr<ListPositionAllocator> mecPositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfMecs; i++)
     {
-        mecPositionAlloc->Add (Vector((0.5*mec_distance + i*mec_distance), 5, 0));
+        mecPositionAlloc->Add (Vector((0.5*mec_distance + i*mec_distance), 4, 0));
     }
     MobilityHelper constantPositionMobility;
     constantPositionMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -351,8 +353,6 @@ void InstallConstantPositionMobilityModels() {
     Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
-        int x_pos = (2000 + 10*i);
-        NS_LOG_DEBUG("x_pos is " << x_pos);
         uePositionAlloc->Add (Vector(2000, 10, 0));
     }
     MobilityHelper constantPositionMobility;
@@ -381,13 +381,13 @@ void InstallLteDevices(){
         mecEnbMap[remoteHostContainer.Get(i+1)] = enbNodes.Get(i);
     }
 
-    for (unsigned int i = numberOfEnbs; i < remoteHostContainer.GetN(); i++){
-        //Assign every "extra" MEC to a random eNB
-        int index = rand()%(numberOfEnbs);
-        Ptr<Node> node = remoteHostContainer.Get(i);
-        Ptr<Node> value = enbNodes.Get(index);
-        mecEnbMap[node] = value;
-    }
+//    for (unsigned int i = numberOfEnbs; i < remoteHostContainer.GetN(); i++){
+//        //Assign every "extra" MEC to a random eNB
+//        int index = rand()%(numberOfEnbs);
+//        Ptr<Node> node = remoteHostContainer.Get(i);
+//        Ptr<Node> value = enbNodes.Get(index);
+//        mecEnbMap[node] = value;
+//    }
 }
 
 
