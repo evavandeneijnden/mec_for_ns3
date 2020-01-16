@@ -48,7 +48,7 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
 //Experiment settings. DO NOT change between experiments
-const double simTime = 5; //in seconds
+const double simTime = 200; //in seconds (it takes +- 900 seconds to drive a full circle)
 const int numberOfUes = 2;
 
 //Application-mimicking settings. DO NOT change between experiments
@@ -71,10 +71,10 @@ unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchest
 
 
 //Handover strategy settings. Change between experiments
-int METRIC = 1; //Valid options are 0 for delay, 1 for distance
+int METRIC = 0; //Valid options are 0 for delay, 1 for distance
 int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
 double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
-int DELAY_THRESHOLD = 20; //If delay is higher than threshold, switch. In ms.
+int DELAY_THRESHOLD = 15; //If delay is higher than threshold, switch. In ms.
 int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the distance between MECs, switch. In meters.
 
 
@@ -310,51 +310,11 @@ void InstallConstantMobilityModels(){
     }
 }
 
-//TODO mobility example stuff is here
-// Method used to verify InstallMobilityTraceModels(); copied from ns2-mobility-trace.cc
-// Prints actual position and velocity when a course change event occurs
-//static void
-//CourseChange (std::ostream *os, std::string foo, Ptr<const MobilityModel> mobility)
-//{
-//    Vector pos = mobility->GetPosition (); // Get position
-//    Vector vel = mobility->GetVelocity (); // Get velocity
-//
-//    Ptr<Node> myNode;
-//    NodeContainer::Iterator i;
-//    for (i = ueNodes.Begin (); i != ueNodes.End (); ++i) {
-//        Ptr<Node> currentNode = (*i);
-//        if(currentNode->GetObject<MobilityModel>() == mobility){
-//            myNode = currentNode;
-//            break;
-//        }
-//    }
-//
-//    NS_LOG_DEBUG("Course change for node " << myNode->GetId() << ": position (" << pos.x << "," << pos.y <<
-//                                             "), velocity (" << vel.x << "," << vel.y << ")");
-////    // Prints position and velocities
-////    *os << Simulator::Now () << " POS: x=" << pos.x << ", y=" << pos.y
-////        << ", z=" << pos.z << "; VEL:" << vel.x << ", y=" << vel.y
-////        << ", z=" << vel.z << std::endl;
-//}
-
 void InstallTraceMobilityModels(){
     InstallInfrastructureMobility();
 
     Ns2MobilityHelper ns2 = Ns2MobilityHelper (traceFile);
-
-//    // Loggig stuff used for debug
-//    // open log file for output
-//    std::ofstream os;
-//    std::string logFile = "mobilityLogging.txt";
-//    os.open (logFile.c_str ());
-
     ns2.Install(ueNodes.Begin(), ueNodes.End());
-
-//    // More logging stuff
-//    // Configure callback for logging
-//    Config::Connect ("/NodeList/*/$ns3::MobilityModel/CourseChange",
-//                     MakeBoundCallback (&CourseChange, &os));
-
 }
 
 void InstallConstantPositionMobilityModels() {
@@ -375,6 +335,7 @@ void InstallLteDevices(){
 
     enbLteDevs = lteHelper->InstallEnbDevice (enbNodes);
 
+
     for (uint32_t i = 0; i < ueNodes.GetN(); i++){
         Ptr<Node> ue = ueNodes.Get(i);
         std::pair<Ptr<NetDevice>, uint64_t> installResult = lteHelper->InstallSingleUeDeviceMec(ue);
@@ -389,6 +350,8 @@ void InstallLteDevices(){
         //Assign a MEC to each eNB
         mecEnbMap[remoteHostContainer.Get(i+1)] = enbNodes.Get(i);
     }
+
+    lteHelper->AddX2Interface (enbNodes);
 
 //    for (unsigned int i = numberOfEnbs; i < remoteHostContainer.GetN(); i++){
 //        //Assign every "extra" MEC to a random eNB
@@ -413,7 +376,6 @@ void InstallUeNodes(){
         Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
         ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
     }
-    // Attach one UE per eNodeB
     //TODO when scaling the experiment up, check that this works
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
@@ -541,7 +503,7 @@ void InstallApplications(){
         m_factory.Set("PacketSize", UintegerValue(UE_PACKET_SIZE));
         m_factory.Set("ServiceInterval", TimeValue(MilliSeconds(SERVICE_INTERVAL)));
         m_factory.Set("PingInterval", TimeValue(MilliSeconds(PING_INTERVAL)));
-        m_factory.Set ("MecIp", Ipv4AddressValue(remoteAddresses[i+1]));
+        m_factory.Set ("MecIp", Ipv4AddressValue(remoteAddresses[1]));
         m_factory.Set("MecPort", UintegerValue(1000));
         m_factory.Set ("OrcIp", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
@@ -590,6 +552,7 @@ int
 main (int argc, char *argv[]) {
 
     lteHelper = CreateObject<LteHelper>();
+    lteHelper->SetHandoverAlgorithmType("ns3::A2A4RsrqHandoverAlgorithm");
     epcHelper = CreateObject<PointToPointEpcHelper>();
     lteHelper->SetEpcHelper(epcHelper);
 
@@ -600,9 +563,9 @@ main (int argc, char *argv[]) {
     ueNodes.Create(numberOfUes);
 
 
-//    InstallTraceMobilityModels();
+    InstallTraceMobilityModels();
 //    InstallConstantMobilityModels();
-    InstallConstantPositionMobilityModels();
+//    InstallConstantPositionMobilityModels();
 
     InstallLteDevices();
 
@@ -633,9 +596,16 @@ main (int argc, char *argv[]) {
 //        Ptr<Node> ue = ueNodes.Get(i_ue);
 //        printNodeConfiguration("UE " + std::to_string(ue->GetId()), ue);
 //    }
+    auto experiment_start = std::chrono::system_clock::now();
+    int simResult = StartSimulation();
+    auto experiment_end = std::chrono::system_clock::now();
 
+    std::chrono::duration<double> elapsed_seconds = experiment_end-experiment_start;
+    std::time_t end_time = std::chrono::system_clock::to_time_t(experiment_end);
 
-    return StartSimulation();
+    NS_LOG_INFO("Finished experiment at " << std::ctime(&end_time) << ". Elapsed time: " << elapsed_seconds.count() << " seconds.");
+
+    return simResult;
 
 
     //END MAIN

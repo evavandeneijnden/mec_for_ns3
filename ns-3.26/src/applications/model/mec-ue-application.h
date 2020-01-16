@@ -143,6 +143,7 @@ namespace ns3 {
         uint64_t ueImsi;
         uint16_t myCellId;
         int requestCounter;
+        int serviceCounter;
         Time m_pingOffset;
         Time m_serviceOffset;
         uint32_t metric;

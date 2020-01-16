@@ -226,7 +226,7 @@ namespace ns3 {
     uint8_t*
     MecOrcApplication::GetFilledString (std::string filler, int size) {
         //dest can either be m_data_request or m_data_ping or m_data_report
-        NS_LOG_FUNCTION(this << filler);
+//        NS_LOG_FUNCTION(this << filler);
 
         std::string result;
         uint8_t *val = (uint8_t *) malloc(size + 1);

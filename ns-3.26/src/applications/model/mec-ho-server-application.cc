@@ -384,6 +384,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 packet->CopyData(buffer, packetSize);
 
                 std::string payloadString = std::string((char*)buffer);
+//                NS_LOG_DEBUG("Payload: " << payloadString.substr(0,30));
 
                 //Split the payload string into arguments
                 std::string tempString;
@@ -405,6 +406,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedWaitingTime), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
+                        NS_LOG_DEBUG("Received service request with ID " << args[2] << " from " << inet_from.GetIpv4());
                         break;
                     }
                     case 2:{
@@ -489,7 +491,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         //Create packet payload
-                        std::string fillString = "1/3/";
+                        std::string fillString = "1/3/first/";
                         uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
                         //Send packet

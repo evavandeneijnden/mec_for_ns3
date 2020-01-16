@@ -140,6 +140,7 @@ namespace ns3 {
         m_requestBlocked = false;
         myCellId = 0;
         requestCounter = 0;
+        serviceCounter = 0;
     }
 
     MecUeApplication::~MecUeApplication()
@@ -340,7 +341,7 @@ namespace ns3 {
 
     void
     MecUeApplication::SendServiceRequest (void) {
-        NS_LOG_FUNCTION(this);
+
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
         if (Simulator::Now() < m_noSendUntil){
@@ -351,15 +352,17 @@ namespace ns3 {
 
         }
         else {
+            NS_LOG_FUNCTION(this);
             NS_ASSERT(Simulator::Now() >= m_noSendUntil);
             if (!m_requestBlocked){
                 m_requestSent = Simulator::Now();
             }
             //Create packet payload
-            std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
-            std::regex re("1/[0-9]+/");
-            std::smatch match;
-            NS_ASSERT(std::regex_search(fillString, match, re));
+            std::string fillString = "1/" + std::to_string(GetCellId()) + "/" + std::to_string(serviceCounter) + "/";
+            //TODO reinstate assert after removing ID stuff
+//            std::regex re("1/[0-9]+/");
+//            std::smatch match;
+//            NS_ASSERT(std::regex_search(fillString, match, re));
             uint8_t *buffer = GetFilledString(fillString, m_size);
 
 
@@ -370,7 +373,16 @@ namespace ns3 {
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
+
+//            Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
+//            Vector myPosition = myMobility->GetPosition();
+//            NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
+            int result = GetCellId();
+            NS_LOG_DEBUG("current cell ID: " << result);
+
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+            NS_LOG_DEBUG("Sending service request with ID " << std::to_string(serviceCounter) << " to " << m_mecIp);
+            serviceCounter++;
 
             m_requestBlocked = false;
 
@@ -382,6 +394,7 @@ namespace ns3 {
 
         Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
         Vector myPosition = myMobility->GetPosition();
+        NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
 
         std::stringstream ss;
         std::stringstream os;
@@ -494,6 +507,7 @@ namespace ns3 {
         NS_LOG_FUNCTION (this << socket);
         Ptr<Packet> packet;
         Address from;
+        NS_LOG_DEBUG("Rx available: " << socket->GetRxAvailable());
         while ((packet = socket->RecvFrom (from)))
         {
             if (InetSocketAddress::IsMatchingType (from))
@@ -506,6 +520,7 @@ namespace ns3 {
                 uint8_t *buffer = new uint8_t[packetSize];
                 packet->CopyData(buffer, packetSize);
                 std::string payloadString = std::string((char*)buffer);
+//                NS_LOG_DEBUG("Payload: " << payloadString.substr(0,20));
 
                 //Split the payload string into arguments
                 std::string tempString;
@@ -525,7 +540,9 @@ namespace ns3 {
                     case 1: {
                         //This is a service response from my MEC
                         int64_t delay = (Simulator::Now() - m_requestSent).GetMilliSeconds() ;
-                        NS_LOG_INFO("Delay," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
+                        if(args[2] != "first"){
+                            NS_LOG_INFO("Delay for message ID " << args[2] << " ," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
+                        }
                         break;
                     }
                     case 2: {
