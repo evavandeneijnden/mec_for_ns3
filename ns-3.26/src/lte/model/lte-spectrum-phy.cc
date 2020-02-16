@@ -729,7 +729,7 @@ LteSpectrumPhy::StartRxData (Ptr<LteSpectrumSignalParametersDataFrame> params)
             }
           else
             {
-              NS_LOG_LOGIC (this << " not in sync with this signal (cellId=" 
+              NS_LOG_LOGIC (this << " not in sync with this signal (cellId="
               << params->cellId  << ", m_cellId=" << m_cellId << ")");
             }
         }
@@ -885,8 +885,8 @@ LteSpectrumPhy::StartRxUlSrs (Ptr<LteSpectrumSignalParametersUlSrsFrame> lteUlSr
           }
         else
           {
-            NS_LOG_LOGIC (this << " not in sync with this signal (cellId=" 
-                          << cellId  << ", m_cellId=" << m_cellId << ")");          
+            NS_LOG_LOGIC (this << " not in sync with this signal (cellId="
+                          << cellId  << ", m_cellId=" << m_cellId << ")");
           }
       }
       break;
@@ -947,7 +947,10 @@ LteSpectrumPhy::EndRxData ()
   NS_LOG_DEBUG (this << " txMode " << (uint16_t)m_transmissionMode << " gain " << m_txModeGain.at (m_transmissionMode));
   NS_ASSERT (m_transmissionMode < m_txModeGain.size ());
   m_sinrPerceived *= m_txModeGain.at (m_transmissionMode);
-  
+
+  // TODO FIX THIS WITH PROPER CONFIG INSTEAD OF RANDOMLY ADDING CODE.
+  m_dataErrorModelEnabled = false;
+
   while (itTb!=m_expectedTbs.end ())
     {
       if ((m_dataErrorModelEnabled)&&(m_rxPacketBurstList.size ()>0)) // avoid to check for errors when there is no actual data transmitted
@@ -1147,6 +1150,9 @@ LteSpectrumPhy::EndRxDlCtrl ()
     }
 //   m_sinrPerceived *= m_txModeGain.at (m_transmissionMode);
   bool error = false;
+
+  // TODO SET WITH PROPER CONFIG INSTEAD OF RANDOMLY ADDING CODE
+  m_ctrlErrorModelEnabled = false;
   if (m_ctrlErrorModelEnabled)
     {
       double  errorRate = LteMiErrorModel::GetPcfichPdcchError (m_sinrPerceived);
