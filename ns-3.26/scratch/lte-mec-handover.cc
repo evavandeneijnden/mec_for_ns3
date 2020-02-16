@@ -35,6 +35,8 @@
 #include "ns3/ns2-mobility-helper.h"
 #include "ns3/packet.h"
 #include "ns3/vector.h"
+#include "ns3/queue.h"
+#include <ns3/boolean.h>
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -52,7 +54,7 @@ const double simTime = 200; //in seconds (it takes +- 900 seconds to drive a ful
 const int numberOfUes = 2;
 
 //Application-mimicking settings. DO NOT change between experiments
-const uint32_t ORC_PACKET_SIZE = 512;
+const uint32_t ORC_PACKET_SIZE = 256;
 const uint32_t MEC_PACKET_SIZE = 512;
 const uint32_t UE_PACKET_SIZE = 256;
 const uint32_t PING_INTERVAL = 1000; //in ms
@@ -71,7 +73,7 @@ unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchest
 
 
 //Handover strategy settings. Change between experiments
-int METRIC = 0; //Valid options are 0 for delay, 1 for distance
+int METRIC = 1; //Valid options are 0 for delay, 1 for distance
 int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
 double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
 int DELAY_THRESHOLD = 15; //If delay is higher than threshold, switch. In ms.
@@ -376,7 +378,6 @@ void InstallUeNodes(){
         Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
         ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
     }
-    //TODO when scaling the experiment up, check that this works
     for (uint16_t i = 0; i < numberOfUes; i++)
     {
         Ptr<NetDevice> ueDev = ueLteDevs.Get(i);
@@ -517,6 +518,7 @@ void InstallApplications(){
         m_factory.Set("PingOffset", TimeValue(MilliSeconds(i*(PING_INTERVAL/numberOfUes))));
         m_factory.Set("ServiceOffset", TimeValue(MilliSeconds(i*(SERVICE_INTERVAL/numberOfUes))));
         m_factory.Set("Metric", UintegerValue(METRIC));
+        m_factory.Set("Router", PointerValue(router));
 
 
         Ptr<Application> app = m_factory.Create<Application> ();

@@ -333,6 +333,8 @@ namespace ns3 {
             if (InetSocketAddress::IsMatchingType (from))
             {
 
+                InetSocketAddress inet_from = InetSocketAddress::ConvertFrom(from);
+
                 //Get payload from packet
                 uint32_t packetSize = packet->GetSize();
                 uint8_t *buffer = new uint8_t[packetSize];
@@ -459,7 +461,7 @@ namespace ns3 {
                         break;
                     }
                     case 9: {
-                        NS_LOG_DEBUG("Location update");
+                        NS_LOG_DEBUG("Location update from " << inet_from.GetIpv4());
                         //Metric is distance; position update from a UE has just come in
                         Vector uePosition = Vector(std::stoi(args[2]), std::stoi(args[3]),0);
 

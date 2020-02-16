@@ -96,6 +96,7 @@ namespace ns3 {
 
         void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec);
         void SendPosition(void);
+        void PrintRoutes(void);
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send
@@ -147,6 +148,7 @@ namespace ns3 {
         Time m_pingOffset;
         Time m_serviceOffset;
         uint32_t metric;
+        Ptr<Node> router;
 
     };
 

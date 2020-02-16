@@ -28,6 +28,7 @@
 #include <fstream>
 #include <regex>
 #include "ns3/vector.h"
+#include "ns3/ipv4-global-routing-helper.h"
 
 namespace ns3 {
 
@@ -124,6 +125,10 @@ namespace ns3 {
                                UintegerValue (),
                                MakeUintegerAccessor (&MecUeApplication::metric),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("Router", "Router node",
+                               PointerValue(),
+                               MakePointerAccessor (&MecUeApplication::router),
+                               MakePointerChecker<Node> ())
         ;
         return tid;
     }
@@ -219,7 +224,6 @@ namespace ns3 {
     }
 
 
-
     void
     MecUeApplication::StopApplication ()
     {
@@ -245,6 +249,13 @@ namespace ns3 {
         Simulator::Cancel (m_sendPositionEvent);
     }
 
+    void
+    MecUeApplication::PrintRoutes(void) {
+        NS_LOG_DEBUG("ROUTES in router");
+        Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper>(&std::cout);
+        Ipv4GlobalRoutingHelper ipv4RoutingHelper;
+        ipv4RoutingHelper.PrintRoutingTableAt(Seconds(0), router, routingStream);
+    }
 
     uint8_t*
     MecUeApplication::GetFilledString (std::string filler, int size) {
@@ -273,7 +284,7 @@ namespace ns3 {
     }
 
     bool MecUeApplication::CheckEnb(Ptr<LteEnbNetDevice> enb) {
-//        NS_LOG_FUNCTION(this);
+        NS_LOG_FUNCTION(this);
         bool result = false;
 
         Ptr<LteEnbRrc> rrc = enb->GetRrc();
@@ -377,11 +388,11 @@ namespace ns3 {
 //            Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
 //            Vector myPosition = myMobility->GetPosition();
 //            NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
-            int result = GetCellId();
-            NS_LOG_DEBUG("current cell ID: " << result);
+//            int result = GetCellId();
+//            NS_LOG_DEBUG("current cell ID: " << result);
 
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-            NS_LOG_DEBUG("Sending service request with ID " << std::to_string(serviceCounter) << " to " << m_mecIp);
+//            NS_LOG_DEBUG("Sending service request with ID " << std::to_string(serviceCounter) << " to " << m_mecIp);
             serviceCounter++;
 
             m_requestBlocked = false;
@@ -392,26 +403,68 @@ namespace ns3 {
     MecUeApplication::SendPosition(void){
         NS_LOG_FUNCTION(this);
 
-        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
-        Vector myPosition = myMobility->GetPosition();
-        NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
+        if (Simulator::Now() < m_noSendUntil){
+            m_sendPositionEvent = Simulator::Schedule(m_noSendUntil, &MecUeApplication::SendPosition, this);
+            NS_LOG_DEBUG("Position update blocked");
+        }
+        else {
+            NS_ASSERT(Simulator::Now() > m_noSendUntil);
+            Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
+            Vector myPosition = myMobility->GetPosition();
+            NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
 
-        std::stringstream ss;
-        std::stringstream os;
-        m_mecIp.Print(os);
-        ss << os.rdbuf();
-        std::string mecString = ss.str();
+            std::stringstream ss;
+            std::stringstream os;
+            m_mecIp.Print(os);
+            ss << os.rdbuf();
+            std::string mecString = ss.str();
 
-        //TODO add validation below
-        std::string fillString = "9/" + mecString + "/" + std::to_string(myPosition.x) + "/" + std::to_string(myPosition.y) + "/";
-        uint8_t *buffer = GetFilledString(fillString, m_size);
+            //TODO add validation below
+            std::string fillString = "9/" + mecString + "/" + std::to_string(myPosition.x) + "/" + std::to_string(myPosition.y) + "/";
+            uint8_t *buffer = GetFilledString(fillString, m_size);
 
-        //Create packet
-        Ptr<Packet> p = Create<Packet> (buffer, m_size);
-        m_txTrace (p);
-        m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
+            //Create packet
+            Ptr<Packet> p = Create<Packet> (buffer, m_size);
+            m_txTrace (p);
+            m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
 
-        m_sendPositionEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPosition, this);
+            //Print my cell ID, print list of connected UEs for each eNB
+//            int cellId = GetCellId();
+//            NS_LOG_DEBUG("My cellID: " << std::to_string(cellId));
+//
+//            Ptr<LteEnbRrc> rrc = m_enb0->GetRrc();
+//            std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
+//            std::map<uint16_t, Ptr<UeManager>>::iterator it;
+//            for(it = ueMap.begin(); it != ueMap.end(); ++it){
+//                Ptr<UeManager> manager = it->second;
+//                uint64_t imsi = manager->GetImsi();
+//                NS_LOG_DEBUG("UE with IMSI " << std::to_string(imsi) << " connected to eNB 0.");
+//            }
+//
+//            rrc = m_enb1->GetRrc();
+//            ueMap = rrc->GetUeMap();
+//            for(it = ueMap.begin(); it != ueMap.end(); ++it){
+//                Ptr<UeManager> manager = it->second;
+//                uint64_t imsi = manager->GetImsi();
+//                NS_LOG_DEBUG("UE with IMSI " << std::to_string(imsi) << " connected to eNB 1.");
+//            }
+//
+//            rrc = m_enb2->GetRrc();
+//            ueMap = rrc->GetUeMap();
+//            for(it = ueMap.begin(); it != ueMap.end(); ++it){
+//                Ptr<UeManager> manager = it->second;
+//                uint64_t imsi = manager->GetImsi();
+//                NS_LOG_DEBUG("UE with IMSI " << std::to_string(imsi) << " connected to eNB 2.");
+//            }
+//            Print routes as they are known at this moment
+//            NS_LOG_DEBUG("CURRENT ROUTES");
+//            Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper>(&std::cout);
+//            Ipv4GlobalRoutingHelper ipv4RoutingHelper;
+//            ipv4RoutingHelper.PrintRoutingTableAt(Simulator::Now(), m_thisNode, routingStream);
+
+            m_sendPositionEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPosition, this);
+
+        }
     }
 
     void
@@ -507,7 +560,6 @@ namespace ns3 {
         NS_LOG_FUNCTION (this << socket);
         Ptr<Packet> packet;
         Address from;
-        NS_LOG_DEBUG("Rx available: " << socket->GetRxAvailable());
         while ((packet = socket->RecvFrom (from)))
         {
             if (InetSocketAddress::IsMatchingType (from))
