@@ -65,7 +65,7 @@ namespace ns3 {
 
         void HandleRead (Ptr<Socket> socket);
 
-        void SendWaitingTimeUpdate(void);
+        void SendResponseTimeUpdate(void);
         void SendUeTransfer(Ipv4Address newAddress);
         void SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet);
 //        void SendRequestEcho(void);
@@ -107,7 +107,7 @@ namespace ns3 {
        double MEC_RATE; //in jobs per millisecond
        int UE_SIZE;
 
-        uint32_t m_expectedWaitingTime = 0;
+        uint32_t m_expectedResponseTime = 0;
         int m_noUes ;
         int m_noHandovers ;
         Time m_startTime;

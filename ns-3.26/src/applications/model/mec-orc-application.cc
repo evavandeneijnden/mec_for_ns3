@@ -268,7 +268,7 @@ namespace ns3 {
         std::string portString = ss2.str();
 
         //Used to provide a no-send time (in ms) to the UE so it doesn't try to send messages mid handover; wait until handover has been processed by current AND new MEC
-        int handoverTime = waitingTimes.find(currentMecAddress)->second + waitingTimes.find(newMecAddress)->second;
+        int handoverTime = responseTimes.find(currentMecAddress)->second + responseTimes.find(newMecAddress)->second;
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
         std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[1-9][0-9]+/");
@@ -430,7 +430,7 @@ namespace ns3 {
                             //Find InetSocketAddress for bestMec
                             bool found = false;
 
-                            for (std::map<InetSocketAddress, int>::iterator it = waitingTimes.begin(); it != waitingTimes.end() && !found; ++it){
+                            for (std::map<InetSocketAddress, int>::iterator it = responseTimes.begin(); it != responseTimes.end() && !found; ++it){
                                 InetSocketAddress current = it->first;
                                 Ipv4Address currentIpv4 = current.GetIpv4();
 
@@ -445,17 +445,17 @@ namespace ns3 {
                         break;
                     }
                     case 5: {
-                        NS_LOG_DEBUG("Waiting time update");
-                        int newWaitingTime = stoi(args[1]);
+                        NS_LOG_DEBUG("Response time update: " << args[1] << " from " << inet_from.GetIpv4());
+                        int newResponseTime = stoi(args[1]);
                         InetSocketAddress sendAddress = InetSocketAddress::ConvertFrom(from);
 
-                        if (waitingTimes.find(sendAddress) != waitingTimes.end()) {
+                        if (responseTimes.find(sendAddress) != responseTimes.end()) {
                             //Element already exists in map
-                            waitingTimes[sendAddress] = newWaitingTime;
+                            responseTimes[sendAddress] = newResponseTime;
 
                         } else {
                             //New MEC, add entry in map
-                            waitingTimes.insert(std::pair<InetSocketAddress, int>(sendAddress, newWaitingTime));
+                            responseTimes.insert(std::pair<InetSocketAddress, int>(sendAddress, newResponseTime));
 
                         }
                         break;
@@ -469,8 +469,9 @@ namespace ns3 {
                         std::vector<double> distances;
                         for(int i = 0; i<int(allMecPositions.size()); i++){
                             Vector mecPosition = allMecPositions[i];
-                            double distanceSum = pow((double)(mecPosition.x - uePosition.x), 2.0) - pow((double)(mecPosition.y - uePosition.y), 2.0);
+                            double distanceSum = pow((double)(mecPosition.x - uePosition.x), 2.0) + pow((double)(mecPosition.y - uePosition.y), 2.0);
                             double distance = sqrt(distanceSum);
+                            NS_LOG_DEBUG("Distance calculations: mecPosition " << mecPosition << " , uePosition " << uePosition << " , distanceSum " << distanceSum << " , distance " << distance);
                             distances.push_back(distance);
                         }
 

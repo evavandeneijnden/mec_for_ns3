@@ -139,8 +139,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
-        MSG_FREQ = 1/m_serviceInterval;
-        MEAS_FREQ = 1000/m_measurementInterval;
+        MSG_FREQ = 1.0/(double)m_serviceInterval;
+        if (metric == 0){
+            MEAS_FREQ = 1.0/(double)m_measurementInterval;
+        }
+        else if (metric == 1){
+            MEAS_FREQ = 0.0;
+        }
 
 
         //Make all servers list
@@ -208,9 +213,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         }
         m_socket->SetRecvCallback(MakeCallback (&MecHoServerApplication::HandleRead, this));
         m_socket->SetAllowBroadcast(false);
-        //Send waitingtimeupdates only if metric is 0 --> delay
+        //Send ResponseTimeupdates only if metric is 0 --> delay
         if (metric == 0){
-            SendWaitingTimeUpdate();
+            SendResponseTimeUpdate();
         }
 
 
@@ -278,25 +283,53 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     }
 
     void
-    MecHoServerApplication::SendWaitingTimeUpdate (void) {
+    MecHoServerApplication::SendResponseTimeUpdate (void) {
         NS_LOG_FUNCTION(this);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
-            double serviceRho = (double)(myClients.size() * MSG_FREQ) / (1 / MEC_RATE);
-            double expectedServiceWaitingTime = (serviceRho / (1 - serviceRho)) * MEC_RATE;
-            double pingRho = (double)(m_noUes * MEAS_FREQ) / (1 / MEC_RATE);
-            double expectedPingWaitingTime = (double)(pingRho / (1 - pingRho)) * MEC_RATE;
-            double handoverFrequency = (double)m_noHandovers / ((Simulator::Now() - m_startTime).GetSeconds());
-            double handoverRho = (double)handoverFrequency / (1 / MEC_RATE);
-            double expectedHandoverWaitingTime = (double)(handoverRho / (1 - handoverRho)) * MEC_RATE;
-//            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceWaitingTime:" << expectedServiceWaitingTime << ", pingRho: "
-//                          << pingRho << ", expectedPingWaitingTime: " << expectedPingWaitingTime << ",handoverFrequency: " << handoverFrequency
-//                          << ", handoverRho: " << handoverRho << ", expectedHandoverWaitingTime: " << expectedHandoverWaitingTime);
-            m_expectedWaitingTime = (expectedServiceWaitingTime + expectedPingWaitingTime + expectedHandoverWaitingTime)*1000;
+            //TODO check/fix these equations
+            double serviceLambda = (double)myClients.size() * (double)MSG_FREQ;
+            double serviceRho = serviceLambda / (double)MEC_RATE;
+            double expectedServiceResponseTime;
+            if (serviceLambda == 0.0){
+                expectedServiceResponseTime = 0.0;
+            }
+            else{
+                expectedServiceResponseTime = (serviceRho / (1.0 - serviceRho)) / serviceLambda;
+            }
+
+            double pingLambda = (double)m_noUes * (double)MEAS_FREQ;
+            double pingRho = pingLambda / (double) MEC_RATE;
+            double expectedPingResponseTime;
+            if (pingLambda == 0.0){
+                expectedPingResponseTime = 0.0;
+            }
+            else {
+                expectedPingResponseTime = (double)(pingRho / (1.0 - pingRho)) / pingLambda;
+            }
+
+            double handoverLambda = (double)m_noHandovers / (double)((Simulator::Now() - m_startTime).GetMilliSeconds());
+            double expectedHandoverResponseTime;
+            double handoverRho;
+            if (handoverLambda == 0.0){
+                expectedHandoverResponseTime = 0.0;
+                handoverRho = 0.0;
+            }
+            else {
+                handoverRho = (double)handoverLambda / (double)MEC_RATE;
+                expectedHandoverResponseTime = (double)(handoverRho / (1.0 - handoverRho)) / handoverLambda;
+            }
+
+
+            m_expectedResponseTime = (expectedServiceResponseTime + expectedPingResponseTime + expectedHandoverResponseTime);
+            NS_LOG_DEBUG("Expected response time: " << m_expectedResponseTime);
+//            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceResponseTime:" << expectedServiceResponseTime << ", pingRho: "
+//                                        << pingRho << ", expectedPingResponseTime: " << expectedPingResponseTime << ",handoverLambda: " << handoverLambda
+//                                        << ", handoverRho: " << handoverRho << ", expectedHandoverResponseTime: " << expectedHandoverResponseTime);
 
             //Create packet payload
-            std::string fillString = "5/" + std::to_string(m_expectedWaitingTime) + "/";
+            std::string fillString = "5/" + std::to_string(m_expectedResponseTime) + "/";
             std::regex re("5/[1-9][0-9]*/");
             std::smatch match;
             NS_ASSERT(std::regex_search(fillString, match, re));
@@ -308,11 +341,11 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_txTrace(p);
             m_socket->Send(p);
 
-            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
+            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
         }
 
          else {
-            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendWaitingTimeUpdate, this);
+            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
         }
 
 
@@ -405,7 +438,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         //service request from ue
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedWaitingTime), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedResponseTime), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
                         NS_LOG_DEBUG("Received service request with ID " << args[2] << " from " << inet_from.GetIpv4());
                         break;
                     }
@@ -419,16 +452,16 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                             //UE is connected to same eNB as MEC
                             if (myClients.find(inet_from) != myClients.end()){
                                 //UE is connected to this MEC
-                                delay = m_expectedWaitingTime;
+                                delay = m_expectedResponseTime;
                             }
                             else{
                                 //TODO UE is connected to another MEC on the same eNB; add "penalty" for having to go through network
-                                delay = m_expectedWaitingTime + 15;
+                                delay = m_expectedResponseTime + 15;
                             }
                         }
                         else {
                             //UE is connected to another eNB; add "penalty" for having to go through network
-                            delay = m_expectedWaitingTime + 15;
+                            delay = m_expectedResponseTime + 15;
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
@@ -468,7 +501,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         cstr[addrString.size()] = '\0';
                         ipv4.Set(cstr);
                         myClients.insert(InetSocketAddress(ipv4, 1000));
-                        noSendUntil = Simulator::Now() + Seconds(m_expectedWaitingTime/1000);
+                        noSendUntil = Simulator::Now() + Seconds(m_expectedResponseTime/1000);
                         m_noHandovers++;
                         break;
                     }
@@ -480,12 +513,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         myClients.insert(inet_from);
 
                         if (int(m_cellId) == ue_cellId){
-                            delay = m_expectedWaitingTime;
+                            delay = m_expectedResponseTime;
 
                         }
                         else {
                             //UE is connected to another eNB; add "penalty" for having to go through network
-                            delay = m_expectedWaitingTime + 15;
+                            delay = m_expectedResponseTime + 15;
                         }
 
                         m_echoAddress = inet_from.GetIpv4();

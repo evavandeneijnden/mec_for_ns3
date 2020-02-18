@@ -107,7 +107,7 @@ namespace ns3 {
         std::vector<InetSocketAddress> m_allServers;
         std::vector<InetSocketAddress> m_allUes;
         std::vector<Vector> allMecPositions;
-        std::map<InetSocketAddress, int> waitingTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
+        std::map<InetSocketAddress, int> responseTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
 
     };
 

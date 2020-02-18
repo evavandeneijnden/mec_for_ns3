@@ -51,7 +51,7 @@ NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
 //Experiment settings. DO NOT change between experiments
 const double simTime = 200; //in seconds (it takes +- 900 seconds to drive a full circle)
-const int numberOfUes = 2;
+const int numberOfUes = 100;
 
 //Application-mimicking settings. DO NOT change between experiments
 const uint32_t ORC_PACKET_SIZE = 256;
@@ -60,7 +60,7 @@ const uint32_t UE_PACKET_SIZE = 256;
 const uint32_t PING_INTERVAL = 1000; //in ms
 const uint32_t SERVICE_INTERVAL = 500; //in ms
 const uint32_t WAITING_TIME_UPDATE_INTERVAL = 1000; //in ms
-double MEC_RATE = 0.1; //in jobs per millisecond
+double MEC_RATE = 1; //in jobs per millisecond
 const uint32_t UE_HANDOVER_SIZE = 200;
 
 
@@ -73,7 +73,7 @@ unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchest
 
 
 //Handover strategy settings. Change between experiments
-int METRIC = 1; //Valid options are 0 for delay, 1 for distance
+int METRIC = 0; //Valid options are 0 for delay, 1 for distance
 int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
 double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
 int DELAY_THRESHOLD = 15; //If delay is higher than threshold, switch. In ms.
@@ -81,7 +81,7 @@ int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the d
 
 
 //Mobility model variables. DO NOT change between experiments
-std::string traceFile = "handoverMobility.tcl";
+std::string traceFile = "100TracenNs2.tcl";
 
 // -------------------------------------------------------
 
