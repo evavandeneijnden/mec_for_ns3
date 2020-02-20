@@ -39,6 +39,7 @@
 #include <fstream>
 #include <iostream>
 #include "ns3/random-variable-stream.h"
+#include "ns3/double.h"
 
 namespace ns3 {
 

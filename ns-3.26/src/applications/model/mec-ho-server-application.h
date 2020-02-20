@@ -35,6 +35,7 @@
 #include "ns3/string.h"
 #include "ns3/trace-source-accessor.h"
 #include "ns3/random-variable-stream.h"
+#include "ns3/double.h"
 
 namespace ns3 {
 

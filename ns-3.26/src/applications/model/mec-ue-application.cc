@@ -236,12 +236,12 @@ namespace ns3 {
         m_socket->SetAllowBroadcast(false);
         NS_ASSERT(m_socket);
 
-        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5 + ((randomness->GetValue())*1000)) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
+        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
         if (metric == 0){
-            m_sendPingEvent = Simulator::Schedule((Seconds(0.5 + ((randomness->GetValue())*1000)) + m_pingOffset), &MecUeApplication::SendPing, this);
+            m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPing, this);
         }
         else if (metric == 1){
-            m_sendPositionEvent = Simulator::Schedule((Seconds(0.5 + ((randomness->GetValue())*1000)) + m_pingOffset), &MecUeApplication::SendPosition, this);
+            m_sendPositionEvent = Simulator::Schedule((Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPosition, this);
         }
         else {
             NS_LOG_ERROR("An invalid metric parameter was passed to the UE");
@@ -414,7 +414,7 @@ namespace ns3 {
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
-            m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+            m_sendServiceEvent = Simulator::Schedule (m_serviceInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendServiceRequest, this);
 
             m_requestBlocked = false;
             serviceRequestCounter++;
@@ -450,7 +450,7 @@ namespace ns3 {
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
 
-            m_sendPositionEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPosition, this);
+            m_sendPositionEvent = Simulator::Schedule(m_pingInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendPosition, this);
             sendPositionCounter++;
 
         }
@@ -498,7 +498,7 @@ namespace ns3 {
             }
             mecCounter++;
         }
-        m_sendPingEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPing, this);
+        m_sendPingEvent = Simulator::Schedule(m_pingInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendPing, this);
         requestCounter ++;
     }
 
@@ -600,7 +600,7 @@ namespace ns3 {
                         m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
                         if(m_measurementReport.size() == m_allServers.size()){
                             //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
-                            Simulator::Schedule(Seconds(0), &MecUeApplication::SendMeasurementReport, this, m_measurementReport);
+                            Simulator::Schedule(Seconds(0) + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendMeasurementReport, this, m_measurementReport);
                             m_measurementReport.clear(); //Start with an empty report for the next iteration
                         }
                         pingResponseCounter++;
