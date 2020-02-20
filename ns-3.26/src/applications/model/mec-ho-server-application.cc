@@ -167,6 +167,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
+
+        //Create random variable for variation in scheduling
+        randomness = CreateObject<UniformRandomVariable>();
+        randomness->SetAttribute("Min", DoubleValue(0.0));
+        randomness->SetAttribute("Max", DoubleValue(10.0));
+
+
         MSG_FREQ = 1.0/(double)m_serviceInterval;
         if (metric == 0){
             MEAS_FREQ = 1.0/(double)m_measurementInterval;
@@ -368,11 +375,11 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             m_txTrace(p);
             m_socket->Send(p);
 
-            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
+            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval + (randomness->GetValue()))/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
         }
 
          else {
-            m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
+             m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval + (randomness->GetValue()))/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
         }
         responseTimeUpdateCounter++;
 
@@ -467,7 +474,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         //service request from ue
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedResponseTime), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedResponseTime + (randomness->GetValue())), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
                         serviceRequestCounter++;
                         break;
                     }
@@ -492,7 +499,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay + (randomness->GetValue())), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
                         pingRequestCounter++;
                         break;
                     }
@@ -516,7 +523,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         myClients.erase(newInet);
                         //Initiate handover
-                        Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this, m_newAddress);
+                        Simulator::Schedule(MilliSeconds(0 + (randomness->GetValue())), &MecHoServerApplication::SendUeTransfer, this, m_newAddress);
                         handoverCommandCounter++;
                         break;
                     }
@@ -559,7 +566,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         //Send packet
                         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
-                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, p);
+                        m_echoEvent = Simulator::Schedule(MilliSeconds(delay + (randomness->GetValue())), &MecHoServerApplication::SendEcho, this, m_echoAddress, p);
                         firstRequestCounter++;
                         break;
                     }

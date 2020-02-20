@@ -34,6 +34,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/string.h"
 #include "ns3/trace-source-accessor.h"
+#include "ns3/random-variable-stream.h"
 
 namespace ns3 {
 
@@ -130,6 +131,8 @@ namespace ns3 {
         int handoverCommandCounter;
         int handoverDataCounter;
         int firstRequestCounter;
+
+        Ptr<UniformRandomVariable> randomness;
 
     };
 

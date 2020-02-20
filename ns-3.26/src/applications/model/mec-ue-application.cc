@@ -196,6 +196,11 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION (this);
 
+        //Create random variable for variation in scheduling
+        randomness = CreateObject<UniformRandomVariable>();
+        randomness->SetAttribute("Min", DoubleValue(0.0));
+        randomness->SetAttribute("Max", DoubleValue(10.0));
+
         std::vector<std::string> args;
         std::string tempString;
         for (int i = 0 ; i < int(m_serverString.length()); i++){
@@ -231,12 +236,12 @@ namespace ns3 {
         m_socket->SetAllowBroadcast(false);
         NS_ASSERT(m_socket);
 
-        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
+        m_sendServiceEvent = Simulator::Schedule (Seconds(0.5 + ((randomness->GetValue())*1000)) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
         if (metric == 0){
-            m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + m_pingOffset), &MecUeApplication::SendPing, this);
+            m_sendPingEvent = Simulator::Schedule((Seconds(0.5 + ((randomness->GetValue())*1000)) + m_pingOffset), &MecUeApplication::SendPing, this);
         }
         else if (metric == 1){
-            m_sendPositionEvent = Simulator::Schedule((Seconds(0.5) + m_pingOffset), &MecUeApplication::SendPosition, this);
+            m_sendPositionEvent = Simulator::Schedule((Seconds(0.5 + ((randomness->GetValue())*1000)) + m_pingOffset), &MecUeApplication::SendPosition, this);
         }
         else {
             NS_LOG_ERROR("An invalid metric parameter was passed to the UE");

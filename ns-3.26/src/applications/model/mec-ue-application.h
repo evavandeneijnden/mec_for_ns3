@@ -38,6 +38,7 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include "ns3/random-variable-stream.h"
 
 namespace ns3 {
 
@@ -161,6 +162,8 @@ namespace ns3 {
         int firstRequestCounter;
         int sendPositionCounter;
         int sendMeasurementReportCounter;
+
+        Ptr<UniformRandomVariable> randomness;
     };
 
 } // namespace ns3
