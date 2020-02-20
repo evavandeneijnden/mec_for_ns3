@@ -119,7 +119,20 @@ namespace ns3 {
         Ipv4Address m_echoAddress;
         std::set<InetSocketAddress> myClients;
         uint32_t metric;
+        Ipv4Address m_thisIpAddress;
+        std::string m_filename;
+
+        int responseTimeUpdateCounter;
+        int ueTransferCounter;
+        int echoCounter;
+        int serviceRequestCounter;
+        int pingRequestCounter;
+        int handoverCommandCounter;
+        int handoverDataCounter;
+        int firstRequestCounter;
+
     };
+
 
 } // namespace ns3
 

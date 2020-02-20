@@ -37,6 +37,8 @@
 #include "ns3/vector.h"
 #include "ns3/queue.h"
 #include <ns3/boolean.h>
+#include <fstream>
+#include <iostream>
 //#include "ns3/gtk-config-store.h"
 
 using namespace ns3;
@@ -50,8 +52,8 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
 
 //Experiment settings. DO NOT change between experiments
-const double simTime = 200; //in seconds (it takes +- 900 seconds to drive a full circle)
-const int numberOfUes = 100;
+const double simTime = 5; //in seconds (it takes +- 900 seconds to drive a full circle)
+const int numberOfUes = 2;
 
 //Application-mimicking settings. DO NOT change between experiments
 const uint32_t ORC_PACKET_SIZE = 256;
@@ -81,7 +83,10 @@ int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the d
 
 
 //Mobility model variables. DO NOT change between experiments
-std::string traceFile = "100TracenNs2.tcl";
+std::string traceFile = "handoverMobility.tcl";
+
+std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results/results_ues" + std::to_string(numberOfUes) + "metric" + std::to_string(METRIC) + "trigger" + std::to_string(TRIGGER);
+std::string timefile = EXPERIMENT_NAME + "TIMEFILE.txt";
 
 // -------------------------------------------------------
 
@@ -185,7 +190,6 @@ void CreateRemoteHosts() {
         //Setup remote hosts
     std::vector<Ptr<Node>> remoteHosts;
     for(unsigned int i_remote_host = 0; i_remote_host < numberOfRemoteHosts; i_remote_host++) {
-//        NS_LOG_DEBUG("Setting up server/ORC" << i_remote_host);
         Ptr<Node> remoteHost_p = CreateObject<Node>();
         internet.Install(remoteHost_p);
         remoteHosts.push_back(remoteHost_p);
@@ -393,7 +397,6 @@ void InstallUeNodes(){
         Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
         Ipv4Address address = iaddr.GetLocal();
         ueAddresses.push_back(address);
-//        NS_LOG_DEBUG("Node (UE) " << (*m)->GetId() << ", address: " << address);
     }
 }
 
@@ -450,11 +453,11 @@ void InstallApplications(){
     m_factory.Set ("DelayThreshold", UintegerValue(DELAY_THRESHOLD));
     m_factory.Set ("MecPositions", StringValue(mecPositions));
     m_factory.Set ("DistanceThreshold", UintegerValue(DISTANCE_THRESHOLD));
+    m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME +  "ORC.txt"));
 
     Ptr<Application> app = m_factory.Create<Application> ();
     orcNode->AddApplication (app);
     orcApp.Add(app);
-//    NS_LOG_DEBUG("Application (type ORC): " << app << " on node " << orcNode->GetId());
 
 
     //  Install MEC applications
@@ -464,6 +467,10 @@ void InstallApplications(){
         Ptr<NetDevice> device = enbNode->GetDevice(0);
         Ptr<LteEnbNetDevice> netDevice = dynamic_cast<LteEnbNetDevice*>(PeekPointer (device));
         uint16_t cellId = netDevice->GetCellId();
+
+        Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+        Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
+        Ipv4Address ipAddr = iaddr.GetLocal();
 
         ObjectFactory m_factory = ObjectFactory("ns3::MecHoServerApplication");
         m_factory.Set ("UpdateInterval", UintegerValue(WAITING_TIME_UPDATE_INTERVAL));
@@ -481,16 +488,16 @@ void InstallApplications(){
         m_factory.Set("UePort", UintegerValue(1000));
         m_factory.Set("NumberOfUes", UintegerValue(numberOfUes));
         m_factory.Set ("Metric", UintegerValue(METRIC));
+        m_factory.Set("Local", Ipv4AddressValue(ipAddr));
+        m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME + "MEC" + std::to_string(i) + ".txt"));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
         mecApps.Add(app);
-//        NS_LOG_DEBUG("Application (type MEC): " << app << " on node " << node->GetId());
     }
 
     //Install UE applications
     for (int i = 0; i < int(remoteAddresses.size()); ++i){
-//        NS_LOG_DEBUG("remote adress: " << remoteAddresses[i]);
     }
     for (int i = 0; i < int(ueNodes.GetN()); ++i){
         Ptr<Node> node = ueNodes.Get(i);
@@ -519,13 +526,13 @@ void InstallApplications(){
         m_factory.Set("ServiceOffset", TimeValue(MilliSeconds(i*(SERVICE_INTERVAL/numberOfUes))));
         m_factory.Set("Metric", UintegerValue(METRIC));
         m_factory.Set("Router", PointerValue(router));
+        m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME + "UE" + std::to_string(i) + ".txt"));
 
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication (app);
 
         ueApps.Add(ueApps);
-//        NS_LOG_DEBUG("Application (type UE): " << app << " on node " << node->GetId());
     }
 }
 
@@ -537,7 +544,7 @@ int StartSimulation(){
 
     lteHelper->EnableTraces ();
 //     Uncomment to enable PCAP tracing
-    p2ph.EnablePcapAll("lena-epc-first");
+//    p2ph.EnablePcapAll("lena-epc-first");
 
     Simulator::Stop(Seconds(simTime));
     Simulator::Run();
@@ -605,7 +612,9 @@ main (int argc, char *argv[]) {
     std::chrono::duration<double> elapsed_seconds = experiment_end-experiment_start;
     std::time_t end_time = std::chrono::system_clock::to_time_t(experiment_end);
 
-    NS_LOG_INFO("Finished experiment at " << std::ctime(&end_time) << ". Elapsed time: " << elapsed_seconds.count() << " seconds.");
+    std::fstream outfile;
+    outfile.open(timefile, std::ios::app);
+    outfile << "Finished experiment at " << std::ctime(&end_time) << ". Elapsed time: " << elapsed_seconds.count() << " seconds." << std::endl;
 
     return simResult;
 

@@ -36,6 +36,8 @@
 #include "ns3/lte-enb-rrc.h"
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <iostream>
 
 namespace ns3 {
 
@@ -149,7 +151,16 @@ namespace ns3 {
         Time m_serviceOffset;
         uint32_t metric;
         Ptr<Node> router;
+        std::string m_filename;
 
+        int serviceRequestCounter;
+        int serviceResponseCounter;
+        int pingRequestCounter;
+        int pingResponseCounter;
+        int handoverCommandCounter;
+        int firstRequestCounter;
+        int sendPositionCounter;
+        int sendMeasurementReportCounter;
     };
 
 } // namespace ns3

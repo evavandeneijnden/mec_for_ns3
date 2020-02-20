@@ -29,6 +29,7 @@
 #include <regex>
 #include "ns3/vector.h"
 #include "ns3/ipv4-global-routing-helper.h"
+#include <iostream>
 
 namespace ns3 {
 
@@ -129,6 +130,10 @@ namespace ns3 {
                                PointerValue(),
                                MakePointerAccessor (&MecUeApplication::router),
                                MakePointerChecker<Node> ())
+                .AddAttribute ("Logfile", "Name of the file to log to",
+                               StringValue(""),
+                               MakeStringAccessor (&MecUeApplication::m_filename),
+                               MakeStringChecker())
         ;
         return tid;
     }
@@ -145,12 +150,22 @@ namespace ns3 {
         m_requestBlocked = false;
         myCellId = 0;
         requestCounter = 0;
-        serviceCounter = 0;
+
+        serviceRequestCounter = 0;
+        serviceResponseCounter = 0;
+        pingRequestCounter = 0;
+        pingResponseCounter = 0;
+        handoverCommandCounter = 0;
+        firstRequestCounter = 0;
+        sendPositionCounter = 0;
+        sendMeasurementReportCounter = 0;
     }
 
     MecUeApplication::~MecUeApplication()
     {
         NS_LOG_FUNCTION (this);
+
+
 
         delete [] m_data_request;
         delete [] m_data_ping;
@@ -165,6 +180,14 @@ namespace ns3 {
     MecUeApplication::DoDispose (void)
     {
         NS_LOG_FUNCTION (this);
+
+        std::fstream outfile;
+        outfile.open(m_filename, std::ios::app);
+        outfile << "Sanity check: " << std::to_string(serviceRequestCounter) << ", " << std::to_string(serviceResponseCounter) <<
+                ", " << std::to_string(pingRequestCounter) << ", " << std::to_string(pingResponseCounter) << ", " <<
+                std::to_string(handoverCommandCounter) << ", " << std::to_string(firstRequestCounter) << ", " << std::to_string(sendPositionCounter) <<
+                ", " << std::to_string(sendMeasurementReportCounter) << std::endl;
+
         Application::DoDispose ();
     }
 
@@ -247,6 +270,7 @@ namespace ns3 {
         Simulator::Cancel (m_sendPingEvent);
         Simulator::Cancel (m_sendServiceEvent);
         Simulator::Cancel (m_sendPositionEvent);
+
     }
 
     void
@@ -259,7 +283,7 @@ namespace ns3 {
 
     uint8_t*
     MecUeApplication::GetFilledString (std::string filler, int size) {
-//        NS_LOG_FUNCTION(this << filler);
+        NS_LOG_FUNCTION(this << filler);
 
         std::string result;
         uint8_t *val = (uint8_t *) malloc(size + 1);
@@ -302,7 +326,7 @@ namespace ns3 {
     }
 
     uint16_t MecUeApplication::GetCellId(){
-//        NS_LOG_FUNCTION(this);
+        NS_LOG_FUNCTION(this);
 
         uint16_t result;
 
@@ -348,6 +372,8 @@ namespace ns3 {
         m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+
+        firstRequestCounter ++;
     }
 
     void
@@ -369,11 +395,10 @@ namespace ns3 {
                 m_requestSent = Simulator::Now();
             }
             //Create packet payload
-            std::string fillString = "1/" + std::to_string(GetCellId()) + "/" + std::to_string(serviceCounter) + "/";
-            //TODO reinstate assert after removing ID stuff
-//            std::regex re("1/[0-9]+/");
-//            std::smatch match;
-//            NS_ASSERT(std::regex_search(fillString, match, re));
+            std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
+            std::regex re("1/[0-9]+/");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(fillString, match, re));
             uint8_t *buffer = GetFilledString(fillString, m_size);
 
 
@@ -384,18 +409,10 @@ namespace ns3 {
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
-
-//            Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
-//            Vector myPosition = myMobility->GetPosition();
-//            NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
-//            int result = GetCellId();
-//            NS_LOG_DEBUG("current cell ID: " << result);
-
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-//            NS_LOG_DEBUG("Sending service request with ID " << std::to_string(serviceCounter) << " to " << m_mecIp);
-            serviceCounter++;
 
             m_requestBlocked = false;
+            serviceRequestCounter++;
 
         }
     }
@@ -405,13 +422,11 @@ namespace ns3 {
 
         if (Simulator::Now() < m_noSendUntil){
             m_sendPositionEvent = Simulator::Schedule(m_noSendUntil, &MecUeApplication::SendPosition, this);
-            NS_LOG_DEBUG("Position update blocked");
         }
         else {
             NS_ASSERT(Simulator::Now() > m_noSendUntil);
             Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
             Vector myPosition = myMobility->GetPosition();
-            NS_LOG_DEBUG("Updating position: (" << myPosition.x << "," << myPosition.y << ")");
 
             std::stringstream ss;
             std::stringstream os;
@@ -419,8 +434,10 @@ namespace ns3 {
             ss << os.rdbuf();
             std::string mecString = ss.str();
 
-            //TODO add validation below
             std::string fillString = "9/" + mecString + "/" + std::to_string(myPosition.x) + "/" + std::to_string(myPosition.y) + "/";
+            std::regex re("9/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/\\d+\\.\\d+/\\d+\\.\\d+/");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(fillString, match, re));
             uint8_t *buffer = GetFilledString(fillString, m_size);
 
             //Create packet
@@ -428,41 +445,8 @@ namespace ns3 {
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
 
-            //Print my cell ID, print list of connected UEs for each eNB
-//            int cellId = GetCellId();
-//            NS_LOG_DEBUG("My cellID: " << std::to_string(cellId));
-//
-//            Ptr<LteEnbRrc> rrc = m_enb0->GetRrc();
-//            std::map<uint16_t, Ptr<UeManager>> ueMap = rrc->GetUeMap();
-//            std::map<uint16_t, Ptr<UeManager>>::iterator it;
-//            for(it = ueMap.begin(); it != ueMap.end(); ++it){
-//                Ptr<UeManager> manager = it->second;
-//                uint64_t imsi = manager->GetImsi();
-//                NS_LOG_DEBUG("UE with IMSI " << std::to_string(imsi) << " connected to eNB 0.");
-//            }
-//
-//            rrc = m_enb1->GetRrc();
-//            ueMap = rrc->GetUeMap();
-//            for(it = ueMap.begin(); it != ueMap.end(); ++it){
-//                Ptr<UeManager> manager = it->second;
-//                uint64_t imsi = manager->GetImsi();
-//                NS_LOG_DEBUG("UE with IMSI " << std::to_string(imsi) << " connected to eNB 1.");
-//            }
-//
-//            rrc = m_enb2->GetRrc();
-//            ueMap = rrc->GetUeMap();
-//            for(it = ueMap.begin(); it != ueMap.end(); ++it){
-//                Ptr<UeManager> manager = it->second;
-//                uint64_t imsi = manager->GetImsi();
-//                NS_LOG_DEBUG("UE with IMSI " << std::to_string(imsi) << " connected to eNB 2.");
-//            }
-//            Print routes as they are known at this moment
-//            NS_LOG_DEBUG("CURRENT ROUTES");
-//            Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper>(&std::cout);
-//            Ipv4GlobalRoutingHelper ipv4RoutingHelper;
-//            ipv4RoutingHelper.PrintRoutingTableAt(Simulator::Now(), m_thisNode, routingStream);
-
             m_sendPositionEvent = Simulator::Schedule(m_pingInterval, &MecUeApplication::SendPosition, this);
+            sendPositionCounter++;
 
         }
     }
@@ -471,6 +455,7 @@ namespace ns3 {
     MecUeApplication::SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec){
         NS_LOG_FUNCTION(this);
         m_socket->SendTo(p, 0, mec);
+       pingRequestCounter++;
     }
 
     void
@@ -492,11 +477,9 @@ namespace ns3 {
                 //Create packet payload
                 std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/");
-                fillString.append(std::to_string(requestCounter) + "/");
-                //TODO reinstate this check after ID check is gone
-//                std::regex re("2/[0-9]+/");
-//                std::smatch match;
-//                NS_ASSERT(std::regex_search(fillString, match, re));
+                std::regex re("2/[0-9]+/");
+                std::smatch match;
+                NS_ASSERT(std::regex_search(fillString, match, re));
                 uint8_t *buffer = GetFilledString(fillString, m_size);
 
                 //Create packet
@@ -507,7 +490,6 @@ namespace ns3 {
 
                 //Determine correct server socket and send
                 Simulator::Schedule(MicroSeconds(10*mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
-                NS_LOG_DEBUG("Sent ping request with ID " << requestCounter << " to " << mec.GetIpv4());
             }
             mecCounter++;
         }
@@ -552,6 +534,7 @@ namespace ns3 {
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
         m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
+        sendMeasurementReportCounter++;
     }
 
     void
@@ -572,7 +555,6 @@ namespace ns3 {
                 uint8_t *buffer = new uint8_t[packetSize];
                 packet->CopyData(buffer, packetSize);
                 std::string payloadString = std::string((char*)buffer);
-//                NS_LOG_DEBUG("Payload: " << payloadString.substr(0,20));
 
                 //Split the payload string into arguments
                 std::string tempString;
@@ -592,9 +574,11 @@ namespace ns3 {
                     case 1: {
                         //This is a service response from my MEC
                         int64_t delay = (Simulator::Now() - m_requestSent).GetMilliSeconds() ;
-                        if(args[2] != "first"){
-                            NS_LOG_INFO("Delay for message ID " << args[2] << " ," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay);
-                        }
+                        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
+                        std::fstream outfile;
+                        outfile.open(m_filename, std::ios::app);
+                        outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "," << myMobility->GetPosition() << std::endl;
+                        serviceResponseCounter++;
                         break;
                     }
                     case 2: {
@@ -614,6 +598,7 @@ namespace ns3 {
                             Simulator::Schedule(Seconds(0), &MecUeApplication::SendMeasurementReport, this, m_measurementReport);
                             m_measurementReport.clear(); //Start with an empty report for the next iteration
                         }
+                        pingResponseCounter++;
                         break;
                     }
                     case 6: {
@@ -628,8 +613,11 @@ namespace ns3 {
                         uint16_t newPort = std::stoi(portString);
 
                         //Update MEC address
-                        NS_LOG_INFO("Handover," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << m_mecIp << ","
-                                                << newAddress);
+                        //Log handover, time, my address, old MEC, new MEC and no-send period duration in ms
+                        std::fstream outfile;
+                        outfile.open(m_filename, std::ios::app);
+                        outfile << "Handover," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << m_mecIp << ","
+                                                << newAddress << "," << args[3] << std::endl;
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
                         //Set current_server socket to new server address
@@ -637,8 +625,7 @@ namespace ns3 {
 
                         //Set no-send period
                         m_noSendUntil = Simulator::Now() + MilliSeconds(stoi(args[3]));
-                        NS_LOG_DEBUG("No send until: " << m_noSendUntil.GetSeconds());
-
+                        handoverCommandCounter++;
                         break;
                     }
                 }

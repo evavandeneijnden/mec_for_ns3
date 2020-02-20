@@ -21,6 +21,8 @@
 #include <regex>
 #include "ns3/double.h"
 #include "ns3/vector.h"
+#include <fstream>
+#include <iostream>
 
 namespace ns3 {
 
@@ -100,9 +102,18 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                                UintegerValue(),
                                MakeUintegerAccessor (&MecHoServerApplication::metric),
                                MakeUintegerChecker<uint32_t> ())
+                .AddAttribute ("Local",
+                               "Local IP address",
+                               Ipv4AddressValue (),
+                               MakeIpv4AddressAccessor (&MecHoServerApplication::m_thisIpAddress),
+                               MakeIpv4AddressChecker ())
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecHoServerApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
+                .AddAttribute ("Logfile", "Name of the file to log to",
+                               StringValue(""),
+                               MakeStringAccessor (&MecHoServerApplication::m_filename),
+                               MakeStringChecker())
         ;
         return tid;
     }
@@ -118,6 +129,15 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
         m_noHandovers = 0;
         noSendUntil = Simulator::Now();
+
+        responseTimeUpdateCounter = 0;
+        ueTransferCounter = 0;
+        echoCounter = 0;
+        serviceRequestCounter = 0;
+        pingRequestCounter = 0;
+        handoverCommandCounter = 0;
+        handoverDataCounter = 0;
+        firstRequestCounter = 0;
     }
 
     MecHoServerApplication::~MecHoServerApplication()
@@ -131,6 +151,14 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     MecHoServerApplication::DoDispose (void)
     {
         NS_LOG_FUNCTION (this);
+
+        std::fstream outfile;
+        outfile.open(m_filename, std::ios::app);
+        outfile << "Sanity check: " << std::to_string(responseTimeUpdateCounter) << ", " << std::to_string(ueTransferCounter) <<
+            ", " << std::to_string(echoCounter) << ", " << std::to_string(serviceRequestCounter) << ", " <<
+            std::to_string(pingRequestCounter) << ", " << std::to_string(handoverCommandCounter) << ", " <<
+            std::to_string(handoverDataCounter) << ", " << std::to_string(firstRequestCounter) << std::endl;
+
         Application::DoDispose ();
     }
 
@@ -213,6 +241,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         }
         m_socket->SetRecvCallback(MakeCallback (&MecHoServerApplication::HandleRead, this));
         m_socket->SetAllowBroadcast(false);
+
         //Send ResponseTimeupdates only if metric is 0 --> delay
         if (metric == 0){
             SendResponseTimeUpdate();
@@ -258,7 +287,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     uint8_t*
     MecHoServerApplication::GetFilledString (std::string filler, int size) {
         //dest can either be m_data_request or m_data_ping or m_data_report
-//        NS_LOG_FUNCTION(this << filler);
+        NS_LOG_FUNCTION(this << filler);
 
         std::string result;
         uint8_t *val = (uint8_t *) malloc(size + 1);
@@ -288,7 +317,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         NS_ASSERT(m_sendEvent.IsExpired());
 
         if (Simulator::Now() > noSendUntil) {
-            //TODO check/fix these equations
             double serviceLambda = (double)myClients.size() * (double)MSG_FREQ;
             double serviceRho = serviceLambda / (double)MEC_RATE;
             double expectedServiceResponseTime;
@@ -323,10 +351,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
 
             m_expectedResponseTime = (expectedServiceResponseTime + expectedPingResponseTime + expectedHandoverResponseTime);
-            NS_LOG_DEBUG("Expected response time: " << m_expectedResponseTime);
-//            NS_LOG_DEBUG("serviceRho: " << serviceRho << ", expectedServiceResponseTime:" << expectedServiceResponseTime << ", pingRho: "
-//                                        << pingRho << ", expectedPingResponseTime: " << expectedPingResponseTime << ",handoverLambda: " << handoverLambda
-//                                        << ", handoverRho: " << handoverRho << ", expectedHandoverResponseTime: " << expectedHandoverResponseTime);
+            std::fstream outfile;
+            outfile.open(m_filename, std::ios::app);
+            outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << m_expectedResponseTime << std::endl;
 
             //Create packet payload
             std::string fillString = "5/" + std::to_string(m_expectedResponseTime) + "/";
@@ -347,6 +374,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
          else {
             m_sendEvent = Simulator::Schedule(Seconds(double(m_updateInterval)/1000), &MecHoServerApplication::SendResponseTimeUpdate, this);
         }
+        responseTimeUpdateCounter++;
 
 
     }
@@ -381,6 +409,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         else {
             m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this, newAddress);
         }
+        ueTransferCounter++;
 
     }
 
@@ -392,6 +421,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         if(Simulator::Now() > noSendUntil){
             m_txTrace(packet);
             m_socket->SendTo(packet, 0, InetSocketAddress(echoAddress, 1000));
+            echoCounter++;
         }
         else {
             m_echoEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendEcho, this, echoAddress, packet);
@@ -402,7 +432,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     void
     MecHoServerApplication::HandleRead (Ptr<Socket> socket)
     {
-//        NS_LOG_FUNCTION (this << socket);
+        NS_LOG_FUNCTION (this << socket);
         Ptr<Packet> packet;
         Address from;
         while ((packet = socket->RecvFrom (from)))
@@ -417,7 +447,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 packet->CopyData(buffer, packetSize);
 
                 std::string payloadString = std::string((char*)buffer);
-//                NS_LOG_DEBUG("Payload: " << payloadString.substr(0,30));
 
                 //Split the payload string into arguments
                 std::string tempString;
@@ -439,12 +468,11 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         m_echoEvent = Simulator::Schedule(MilliSeconds(m_expectedResponseTime), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
-                        NS_LOG_DEBUG("Received service request with ID " << args[2] << " from " << inet_from.GetIpv4());
+                        serviceRequestCounter++;
                         break;
                     }
                     case 2:{
                         // ping request from UE
-                        NS_LOG_DEBUG("Received ping request with ID " << args[2] << " from " << inet_from.GetIpv4());
                         int ue_cellId = stoi(args[1]);
                         uint32_t delay = 0; //in ms
 
@@ -455,7 +483,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                                 delay = m_expectedResponseTime;
                             }
                             else{
-                                //TODO UE is connected to another MEC on the same eNB; add "penalty" for having to go through network
                                 delay = m_expectedResponseTime + 15;
                             }
                         }
@@ -466,6 +493,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet);
+                        pingRequestCounter++;
                         break;
                     }
 
@@ -489,6 +517,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         myClients.erase(newInet);
                         //Initiate handover
                         Simulator::Schedule(Seconds(0), &MecHoServerApplication::SendUeTransfer, this, m_newAddress);
+                        handoverCommandCounter++;
                         break;
                     }
                     case 7: {
@@ -503,6 +532,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         myClients.insert(InetSocketAddress(ipv4, 1000));
                         noSendUntil = Simulator::Now() + Seconds(m_expectedResponseTime/1000);
                         m_noHandovers++;
+                        handoverDataCounter++;
                         break;
                     }
                     case 8: {
@@ -530,6 +560,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         //Send packet
                         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
                         m_echoEvent = Simulator::Schedule(MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, p);
+                        firstRequestCounter++;
                         break;
                     }
                 }

@@ -21,6 +21,7 @@
 #include <fstream>
 #include <regex>
 #include <math.h>
+#include <iostream>
 
 namespace ns3 {
 
@@ -78,6 +79,10 @@ namespace ns3 {
                 .AddTraceSource ("Tx", "A new packet is created and is sent",
                                  MakeTraceSourceAccessor (&MecOrcApplication::m_txTrace),
                                  "ns3::Packet::TracedCallback")
+                .AddAttribute ("Logfile", "Name of the file to which we log",
+                               StringValue(""),
+                               MakeStringAccessor (&MecOrcApplication::m_filename),
+                               MakeStringChecker())
         ;
         return tid;
     }
@@ -89,6 +94,12 @@ namespace ns3 {
         m_sendMecEvent = EventId ();
         m_data_ue = 0;
         m_data_mec = 0;
+
+        ueHandoverCounter = 0;
+        mecHandoverCounter = 0;
+        measurementReportCounter = 0;
+        responseTimeUpdateCounter = 0;
+        locationUpdateCounter = 0;
 
     }
 
@@ -105,6 +116,13 @@ namespace ns3 {
     void
     MecOrcApplication::DoDispose (void) {
         NS_LOG_FUNCTION (this);
+
+        std::fstream outfile;
+        outfile.open(m_filename, std::ios::app);
+        outfile << "Sanity check: " << std::to_string(ueHandoverCounter) << ", " << std::to_string(mecHandoverCounter) <<
+            ", " << std::to_string(measurementReportCounter) << ", " << std::to_string(responseTimeUpdateCounter) << ", " <<
+            std::to_string(locationUpdateCounter) << std::endl;
+
         Application::DoDispose ();
     }
 
@@ -179,7 +197,9 @@ namespace ns3 {
             }
         }
         for(int i = 0; i< int(args3.size()) ; i++){
-            //TODO add validation here
+            std::regex re("\\d+,\\d+,\\d+");
+            std::smatch match;
+            NS_ASSERT(std::regex_search(args3[i], match, re));
             std::string currentStringVector = args3[i];
 
             std::vector<std::string> args4;
@@ -226,7 +246,7 @@ namespace ns3 {
     uint8_t*
     MecOrcApplication::GetFilledString (std::string filler, int size) {
         //dest can either be m_data_request or m_data_ping or m_data_report
-//        NS_LOG_FUNCTION(this << filler);
+        NS_LOG_FUNCTION(this << filler);
 
         std::string result;
         uint8_t *val = (uint8_t *) malloc(size + 1);
@@ -284,6 +304,7 @@ namespace ns3 {
         m_txTrace(p);
 
         m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
+        ueHandoverCounter++;
     }
 
     void
@@ -320,6 +341,7 @@ namespace ns3 {
         m_txTrace(p);
 
         m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
+        mecHandoverCounter++;
     }
 
     void
@@ -332,8 +354,6 @@ namespace ns3 {
         {
             if (InetSocketAddress::IsMatchingType (from))
             {
-
-                InetSocketAddress inet_from = InetSocketAddress::ConvertFrom(from);
 
                 //Get payload from packet
                 uint32_t packetSize = packet->GetSize();
@@ -359,7 +379,6 @@ namespace ns3 {
                 switch(stoi(args[0])){
                     case 3: {
                         //Metric is delay and measurement report has come in
-                        NS_LOG_DEBUG("Measurement report");
                         //This is a measurement report from a UE
                         Ipv4Address currentMecAddr = Ipv4Address();
                         currentMecAddr.Set(args[1].c_str());
@@ -442,10 +461,11 @@ namespace ns3 {
                                 }
                             }
                         }
+                        measurementReportCounter++;
                         break;
                     }
                     case 5: {
-                        NS_LOG_DEBUG("Response time update: " << args[1] << " from " << inet_from.GetIpv4());
+                        // Response time update
                         int newResponseTime = stoi(args[1]);
                         InetSocketAddress sendAddress = InetSocketAddress::ConvertFrom(from);
 
@@ -458,10 +478,11 @@ namespace ns3 {
                             responseTimes.insert(std::pair<InetSocketAddress, int>(sendAddress, newResponseTime));
 
                         }
+                        responseTimeUpdateCounter++;
                         break;
                     }
                     case 9: {
-                        NS_LOG_DEBUG("Location update from " << inet_from.GetIpv4());
+                        //Location update
                         //Metric is distance; position update from a UE has just come in
                         Vector uePosition = Vector(std::stoi(args[2]), std::stoi(args[3]),0);
 
@@ -471,7 +492,6 @@ namespace ns3 {
                             Vector mecPosition = allMecPositions[i];
                             double distanceSum = pow((double)(mecPosition.x - uePosition.x), 2.0) + pow((double)(mecPosition.y - uePosition.y), 2.0);
                             double distance = sqrt(distanceSum);
-                            NS_LOG_DEBUG("Distance calculations: mecPosition " << mecPosition << " , uePosition " << uePosition << " , distanceSum " << distanceSum << " , distance " << distance);
                             distances.push_back(distance);
                         }
 
@@ -510,7 +530,6 @@ namespace ns3 {
                                     triggerEquation = (distance<optimalDistance && (distance < currentDistance*(1-hysteresis)));
                                     break;
                                 case 2:
-                                    //TODO add argument for distance threshold
                                     triggerEquation = (distance<optimalDistance && (distance < currentDistance - distance_threshold));
                                     break;
                                 case 3:
@@ -534,6 +553,7 @@ namespace ns3 {
                             SendUeHandover(ueAddress, newMecAddress, currentMecAddr);
                             SendMecHandover(ueAddress, newMecAddress);
                         }
+                        locationUpdateCounter++;
                         break;
                     }
                     default:

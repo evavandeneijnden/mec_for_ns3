@@ -108,6 +108,13 @@ namespace ns3 {
         std::vector<InetSocketAddress> m_allUes;
         std::vector<Vector> allMecPositions;
         std::map<InetSocketAddress, int> responseTimes; //Current waiting times for each MEC by InetSocketAddress. In ms.
+        std::string m_filename;
+
+        int ueHandoverCounter;
+        int mecHandoverCounter;
+        int measurementReportCounter;
+        int responseTimeUpdateCounter;
+        int locationUpdateCounter;
 
     };
 
