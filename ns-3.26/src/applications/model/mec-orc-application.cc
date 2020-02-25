@@ -428,13 +428,14 @@ namespace ns3 {
                                     triggerEquation = (delay<optimalDelay && (delay < currentDelay*(1-hysteresis)));
                                     break;
                                 case 2:
-                                    triggerEquation = (delay<optimalDelay && (delay < currentDelay - (int)delay_threshold));
+                                    triggerEquation = (delay<optimalDelay && (currentDelay > (int)delay_threshold));
                                     break;
                                 case 3:
-                                    triggerEquation = delay<optimalDelay && (delay < currentDelay*(1-hysteresis)) && (delay < currentDelay - (int)delay_threshold);
+                                    triggerEquation = delay<optimalDelay && (delay < currentDelay*(1-hysteresis)) && (currentDelay > (int)delay_threshold);
                                     break;
                                 default:
                                     NS_LOG_ERROR("Unsupported trigger type");
+                                    triggerEquation = false;
                                     StopApplication();
                             }
                             if (triggerEquation){
@@ -530,13 +531,14 @@ namespace ns3 {
                                     triggerEquation = (distance<optimalDistance && (distance < currentDistance*(1-hysteresis)));
                                     break;
                                 case 2:
-                                    triggerEquation = (distance<optimalDistance && (distance < currentDistance - distance_threshold));
+                                    triggerEquation = (distance<optimalDistance && (currentDistance > distance_threshold));
                                     break;
                                 case 3:
-                                    triggerEquation = distance<optimalDistance && (distance < currentDistance*(1-hysteresis)) && (distance < currentDistance - distance_threshold);
+                                    triggerEquation = distance<optimalDistance && (distance < currentDistance*(1-hysteresis)) && (currentDistance > distance_threshold);
                                     break;
                                 default:
                                     NS_LOG_ERROR("Unsupported trigger type");
+                                    triggerEquation = false;
                                     StopApplication();
                             }
                             if (triggerEquation){

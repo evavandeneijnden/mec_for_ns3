@@ -43,28 +43,7 @@
 
 using namespace ns3;
 
-/**
- * Sample simulation script for LTE+EPC. It instantiates several eNodeB,
- * attaches one UE per eNodeB starts a flow for each UE to  and from a remote host.
- * It also  starts yet another flow between each UE pair.
- */
-
 NS_LOG_COMPONENT_DEFINE ("MecHandover");
-
-//Experiment settings. DO NOT change between experiments
-const double simTime = 5; //in seconds (it takes +- 900 seconds to drive a full circle)
-const int numberOfUes = 2;
-
-//Application-mimicking settings. DO NOT change between experiments
-const uint32_t ORC_PACKET_SIZE = 256;
-const uint32_t MEC_PACKET_SIZE = 512;
-const uint32_t UE_PACKET_SIZE = 256;
-const uint32_t PING_INTERVAL = 1000; //in ms
-const uint32_t SERVICE_INTERVAL = 500; //in ms
-const uint32_t WAITING_TIME_UPDATE_INTERVAL = 1000; //in ms
-double MEC_RATE = 1; //in jobs per millisecond
-const uint32_t UE_HANDOVER_SIZE = 200;
-
 
 //do not change these values, they are hardcoded (for now)
 unsigned int numberOfEnbs = 3;
@@ -73,20 +52,31 @@ unsigned int numberOfMecs = 3;
 double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
+//DO NOT change between experiments
+const double simTime = 200; //in seconds
+const int numberOfUes = 100;
 
-//Handover strategy settings. Change between experiments
-int METRIC = 0; //Valid options are 0 for delay, 1 for distance
-int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
-double HYSTERESIS = 0.3; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
+const uint32_t ORC_PACKET_SIZE = 256; //in bytes
+const uint32_t MEC_PACKET_SIZE = 256; //in bytes
+const uint32_t UE_PACKET_SIZE = 256; //in bytes
+const uint32_t UE_HANDOVER_SIZE = 256; //in bytes
+
+const uint32_t PING_INTERVAL = 1000; //in ms
+const uint32_t WAITING_TIME_UPDATE_INTERVAL = 1000; //in ms
+const uint32_t SERVICE_INTERVAL = 100; //in ms
+
+double SERVER_LOAD = 0.9; //between 0 and 1
+std::vector<double> load_distribution{0.4,0.5,0.1}; //the percentage of the total capacity each server will have
+
+double HYSTERESIS = 0.15; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
 int DELAY_THRESHOLD = 15; //If delay is higher than threshold, switch. In ms.
 int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the distance between MECs, switch. In meters.
 
+//Handover strategy settings. Change between experiments
+int METRIC = 0; //Valid options are 0 for delay, 1 for distance
+int TRIGGER = 1; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
 
-//Mobility model variables. DO NOT change between experiments
-std::string traceFile = "handoverMobility.tcl";
 
-std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results/results_ues" + std::to_string(numberOfUes) + "metric" + std::to_string(METRIC) + "trigger" + std::to_string(TRIGGER);
-std::string timefile = EXPERIMENT_NAME + "TIMEFILE.txt";
 
 // -------------------------------------------------------
 
@@ -110,6 +100,13 @@ std::map <Ptr<Node>, Ptr<Node>> mecEnbMap;
 Ptr<Node> pgw;
 Ptr<Node> router;
 std::string mecPositions;
+double lambda; //Number of incoming jobs/messages per ms (system wide)
+double total_mec_rate; //in jobs/ms
+std::vector<double> mec_rates;
+
+std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results" + std::to_string(METRIC) + std::to_string(TRIGGER) + "/172";
+std::string timefile = EXPERIMENT_NAME + "TIMEFILE.txt";
+std::string traceFile = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/mobility/" + std::to_string(numberOfUes) + "trace.tcl";
 
 void printNodeConfiguration(std::string name, Ptr<Node> node) {
     NS_LOG_DEBUG("________FOR " << name << "(" << node->GetId() << ")___________");
@@ -478,7 +475,7 @@ void InstallApplications(){
         m_factory.Set ("MeasurementInterval", UintegerValue(PING_INTERVAL));
         m_factory.Set ("PacketSize", UintegerValue(MEC_PACKET_SIZE));
         m_factory.Set ("UeHandoverSize", UintegerValue(UE_HANDOVER_SIZE));
-        m_factory.Set ("MecRate", DoubleValue(MEC_RATE));
+        m_factory.Set ("MecRate", DoubleValue(mec_rates[i-1]));
         m_factory.Set ("OrcAddress", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
         m_factory.Set ("CellID", UintegerValue(cellId) );
@@ -489,7 +486,7 @@ void InstallApplications(){
         m_factory.Set("NumberOfUes", UintegerValue(numberOfUes));
         m_factory.Set ("Metric", UintegerValue(METRIC));
         m_factory.Set("Local", Ipv4AddressValue(ipAddr));
-        m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME + "MEC" + std::to_string(i) + ".txt"));
+        m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME + "MEC" + ".txt"));
 
         Ptr<Application> app = m_factory.Create<Application> ();
         node->AddApplication(app);
@@ -526,7 +523,7 @@ void InstallApplications(){
         m_factory.Set("ServiceOffset", TimeValue(MilliSeconds(i*(SERVICE_INTERVAL/numberOfUes))));
         m_factory.Set("Metric", UintegerValue(METRIC));
         m_factory.Set("Router", PointerValue(router));
-        m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME + "UE" + std::to_string(i) + ".txt"));
+        m_factory.Set("Logfile", StringValue(EXPERIMENT_NAME + "UE" + ".txt"));
 
 
         Ptr<Application> app = m_factory.Create<Application> ();
@@ -559,6 +556,19 @@ int StartSimulation(){
 
 int
 main (int argc, char *argv[]) {
+
+    //Set load variables
+    std::fstream outfile;
+    outfile.open(timefile, std::ios::app);
+    lambda = (double(1.0/PING_INTERVAL) + double(1.0/SERVICE_INTERVAL)) * (double)numberOfUes;
+    outfile << "Lambda vars: " << std::to_string(double(1/PING_INTERVAL)) << ", " << std::to_string(double(1/SERVICE_INTERVAL)) << ", " << std::to_string((double)numberOfUes) << std::endl;
+    total_mec_rate = lambda/SERVER_LOAD; // in jobs/ms
+    outfile << "Load variables: lambda = " << std::to_string(lambda) << ", total_mec_rate = " << std::to_string(total_mec_rate) << std::endl;
+    mec_rates.push_back((double)load_distribution[0]*total_mec_rate);
+    mec_rates.push_back((double)load_distribution[1]*total_mec_rate);
+    mec_rates.push_back((double)load_distribution[2]*total_mec_rate);
+    outfile << "Server rates: " << std::to_string((double)load_distribution[0]*total_mec_rate) << ", " << std::to_string((double)load_distribution[1]*total_mec_rate) << ", " <<
+        std::to_string((double)load_distribution[2]*total_mec_rate) << std::endl;
 
     lteHelper = CreateObject<LteHelper>();
     lteHelper->SetHandoverAlgorithmType("ns3::A2A4RsrqHandoverAlgorithm");
@@ -612,7 +622,7 @@ main (int argc, char *argv[]) {
     std::chrono::duration<double> elapsed_seconds = experiment_end-experiment_start;
     std::time_t end_time = std::chrono::system_clock::to_time_t(experiment_end);
 
-    std::fstream outfile;
+//    std::fstream outfile;
     outfile.open(timefile, std::ios::app);
     outfile << "Finished experiment at " << std::ctime(&end_time) << ". Elapsed time: " << elapsed_seconds.count() << " seconds." << std::endl;
 

@@ -345,6 +345,7 @@ namespace ns3 {
             result = m_enb2->GetCellId();
         }
         else {
+            result = -1;
             NS_LOG_ERROR("No CellID found");
             StopApplication();
         }
