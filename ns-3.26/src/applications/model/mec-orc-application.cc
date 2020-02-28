@@ -288,7 +288,20 @@ namespace ns3 {
         std::string portString = ss2.str();
 
         //Used to provide a no-send time (in ms) to the UE so it doesn't try to send messages mid handover; wait until handover has been processed by current AND new MEC
-        int handoverTime = responseTimes.find(currentMecAddress)->second + responseTimes.find(newMecAddress)->second;
+        int currentValue = responseTimes.find(currentMecAddress)->second;
+        int newValue = responseTimes.find(newMecAddress)->second;
+
+        std::fstream outfile;
+        outfile.open(m_filename, std::ios::app);
+
+        int handoverTime = -1;
+        if ((currentValue != -1) && (newValue != -1)){
+            handoverTime = currentValue + newValue;
+            outfile << Simulator::Now().GetSeconds() << " ,handoverTime: " << std::to_string(handoverTime) << std::endl;
+        }
+        else {
+            outfile << "At least one param not found: " << std::to_string(currentValue) <<  ", " << std::to_string(newValue) << std::endl;
+        }
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
         std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[1-9][0-9]+/");
@@ -380,8 +393,10 @@ namespace ns3 {
                     case 3: {
                         //Metric is delay and measurement report has come in
                         //This is a measurement report from a UE
-                        Ipv4Address currentMecAddr = Ipv4Address();
-                        currentMecAddr.Set(args[1].c_str());
+                        Ipv4Address currentIpv4 = Ipv4Address();
+                        currentIpv4.Set(args[1].c_str());
+
+                        InetSocketAddress currentMecAddr = InetSocketAddress(currentIpv4, 1000);
 
                         //Make map from args[2] content
                         std::string mapString = args[2];
@@ -406,7 +421,7 @@ namespace ns3 {
                         }
                         NS_ASSERT(delayMap.size() == m_allServers.size());
 
-                        int currentDelay = delayMap.find(currentMecAddr)->second;
+                        int currentDelay = delayMap.find(currentIpv4)->second;
                         NS_ASSERT(currentDelay != 0);
 
                         //find current delay
@@ -444,13 +459,14 @@ namespace ns3 {
                             }
                         }
 
-                        if (bestMec != currentMecAddr){
+                        if (bestMec != currentIpv4){
                             //Initiate a handover to bestMec
                             InetSocketAddress ueAddress = InetSocketAddress::ConvertFrom(from);
                             //Find InetSocketAddress for bestMec
                             bool found = false;
 
-                            for (std::map<InetSocketAddress, int>::iterator it = responseTimes.begin(); it != responseTimes.end() && !found; ++it){
+                            std::map<InetSocketAddress, int>::iterator it;
+                            for (it = responseTimes.begin(); it != responseTimes.end() && !found; ++it){
                                 InetSocketAddress current = it->first;
                                 Ipv4Address currentIpv4 = current.GetIpv4();
 
@@ -467,6 +483,10 @@ namespace ns3 {
                     }
                     case 5: {
                         // Response time update
+                        //TODO remove logging after debug
+                        std::fstream outfile;
+                        outfile.open(m_filename, std::ios::app);
+                        outfile << "Reponse time update: " << args[1] << std::endl;
                         int newResponseTime = stoi(args[1]);
                         InetSocketAddress sendAddress = InetSocketAddress::ConvertFrom(from);
 
@@ -497,15 +517,17 @@ namespace ns3 {
                         }
 
                         //Get UEs current MEC address index
-                        Ipv4Address currentMecAddr = Ipv4Address();
-                        currentMecAddr.Set(args[1].c_str());
+                        Ipv4Address currentIpv4 = Ipv4Address();
+                        currentIpv4.Set(args[1].c_str());
+
+                        InetSocketAddress currentMecAddr = InetSocketAddress(currentIpv4, 1000);
 
                         //Get UEs current distance from MEC
                         double currentDistance = 0;
                         int currentMecIndex = -1;
 
                         for(int i  = 0; i < int(m_allServers.size()); i++) {
-                            if(m_allServers[i].GetIpv4() == currentMecAddr) {
+                            if(m_allServers[i].GetIpv4() == currentIpv4) {
                                 currentDistance = distances[i];
                                 currentMecIndex = i;
                                 break;

@@ -464,7 +464,7 @@ LteHelper::InstallSingleEnbDevice (Ptr<Node> n)
       rrc->SetLteEnbRrcSapUser (rrcProtocol->GetLteEnbRrcSapUser ());
       rrc->AggregateObject (rrcProtocol);
       rrcProtocol->SetCellId (cellId);
-      rrc->SetSrsPeriodicity(160);
+      rrc->SetSrsPeriodicity(320);
     }
   else
     {
@@ -473,7 +473,7 @@ LteHelper::InstallSingleEnbDevice (Ptr<Node> n)
       rrc->SetLteEnbRrcSapUser (rrcProtocol->GetLteEnbRrcSapUser ());
       rrc->AggregateObject (rrcProtocol);
       rrcProtocol->SetCellId (cellId);
-      rrc->SetSrsPeriodicity(160);
+      rrc->SetSrsPeriodicity(320);
     }
 
   if (m_epcHelper != 0)

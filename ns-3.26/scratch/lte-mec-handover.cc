@@ -508,7 +508,7 @@ void InstallApplications(){
         m_factory.Set("PacketSize", UintegerValue(UE_PACKET_SIZE));
         m_factory.Set("ServiceInterval", TimeValue(MilliSeconds(SERVICE_INTERVAL)));
         m_factory.Set("PingInterval", TimeValue(MilliSeconds(PING_INTERVAL)));
-        m_factory.Set ("MecIp", Ipv4AddressValue(remoteAddresses[1]));
+        m_factory.Set ("MecIp", Ipv4AddressValue(remoteAddresses[(i%numberOfMecs) + 1]));
         m_factory.Set("MecPort", UintegerValue(1000));
         m_factory.Set ("OrcIp", Ipv4AddressValue(orcAddress.GetIpv4()));
         m_factory.Set("OrcPort", UintegerValue(orcAddress.GetPort()));
@@ -561,7 +561,7 @@ main (int argc, char *argv[]) {
     std::fstream outfile;
     outfile.open(timefile, std::ios::app);
     lambda = (double(1.0/PING_INTERVAL) + double(1.0/SERVICE_INTERVAL)) * (double)numberOfUes;
-    outfile << "Lambda vars: " << std::to_string(double(1/PING_INTERVAL)) << ", " << std::to_string(double(1/SERVICE_INTERVAL)) << ", " << std::to_string((double)numberOfUes) << std::endl;
+    outfile << "Lambda vars: " << std::to_string(double(1.0/PING_INTERVAL)) << ", " << std::to_string(double(1.0/SERVICE_INTERVAL)) << ", " << std::to_string((double)numberOfUes) << std::endl;
     total_mec_rate = lambda/SERVER_LOAD; // in jobs/ms
     outfile << "Load variables: lambda = " << std::to_string(lambda) << ", total_mec_rate = " << std::to_string(total_mec_rate) << std::endl;
     mec_rates.push_back((double)load_distribution[0]*total_mec_rate);

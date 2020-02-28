@@ -323,6 +323,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         NS_LOG_FUNCTION(this);
         NS_ASSERT(m_sendEvent.IsExpired());
 
+        std::fstream outfile;
+        outfile.open(m_filename, std::ios::app);
+
         if (Simulator::Now() > noSendUntil) {
             double serviceLambda = (double)myClients.size() * (double)MSG_FREQ;
             double serviceRho = serviceLambda / (double)MEC_RATE;
@@ -356,11 +359,19 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 expectedHandoverResponseTime = (double)(handoverRho / (1.0 - handoverRho)) / handoverLambda;
             }
 
+            if (serviceRho + pingRho + handoverRho <= 1){
+                //server/queue is stable
+                m_expectedResponseTime = (expectedServiceResponseTime + expectedPingResponseTime + expectedHandoverResponseTime);
+            }
+            else {
+                //Server/queue unstable
+                m_expectedResponseTime = 1000;
+            }
 
-            m_expectedResponseTime = (expectedServiceResponseTime + expectedPingResponseTime + expectedHandoverResponseTime);
-            std::fstream outfile;
-            outfile.open(m_filename, std::ios::app);
             outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << m_expectedResponseTime << std::endl;
+//            outfile << "Args: " << std::to_string(serviceLambda) << ", " << std::to_string(serviceRho) << ", " << std::to_string(expectedServiceResponseTime) << ", " <<
+//                std::to_string(pingLambda) << ", " << std::to_string(pingRho) << ", " << std::to_string(expectedPingResponseTime) << ", " << std::to_string(handoverLambda) <<
+//                ", " << std::to_string(handoverRho) << ", " << std::to_string(expectedHandoverResponseTime) <<  ", " << std::to_string(MEC_RATE) << std::endl;
 
             //Create packet payload
             std::string fillString = "5/" + std::to_string(m_expectedResponseTime) + "/";
