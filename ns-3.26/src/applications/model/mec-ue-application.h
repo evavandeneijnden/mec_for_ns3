@@ -135,6 +135,8 @@ namespace ns3 {
         //Added
         Time m_noSendUntil;
         Time m_requestSent;
+        Time requestBlockedTime;
+        std::vector<Time> sendTimes;
         std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
         std::map<Ipv4Address,Time> m_pingSent;
         std::vector<InetSocketAddress> m_allServers;

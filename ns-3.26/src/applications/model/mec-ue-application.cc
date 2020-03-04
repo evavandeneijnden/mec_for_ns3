@@ -378,6 +378,7 @@ namespace ns3 {
         m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
+        sendTimes.push_back(Simulator::Now());
 
         firstRequestCounter ++;
     }
@@ -388,8 +389,8 @@ namespace ns3 {
         NS_ASSERT (m_sendServiceEvent.IsExpired ());
 
         if (Simulator::Now() < m_noSendUntil){
-            m_requestSent = Simulator::Now();
             m_requestBlocked = true;
+            requestBlockedTime = Simulator::Now();
             Time waitingTime = m_noSendUntil - Simulator::Now();
             m_sendServiceEvent = Simulator::Schedule (waitingTime, &MecUeApplication::SendServiceRequest, this);
 
@@ -397,8 +398,12 @@ namespace ns3 {
         else {
             NS_LOG_FUNCTION(this);
             NS_ASSERT(Simulator::Now() >= m_noSendUntil);
-            if (!m_requestBlocked){
-                m_requestSent = Simulator::Now();
+            if (m_requestBlocked){
+                //UE has tried to send during no-send period
+                sendTimes.push_back(requestBlockedTime);
+            }
+            else {
+                sendTimes.push_back(Simulator::Now());
             }
             //Create packet payload
             std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
@@ -579,10 +584,11 @@ namespace ns3 {
                 switch(std::stoi(args[0])){
                     case 1: {
                         //This is a service response from my MEC
-                        int64_t delay = (Simulator::Now() - m_requestSent).GetMilliSeconds() ;
-                        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
                         std::fstream outfile;
                         outfile.open(m_filename, std::ios::app);
+                        int64_t delay = (Simulator::Now() - sendTimes[0]).GetMilliSeconds() ;
+                        sendTimes.erase(sendTimes.begin());
+                        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
                         outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "," << myMobility->GetPosition() << std::endl;
                         serviceResponseCounter++;
                         break;

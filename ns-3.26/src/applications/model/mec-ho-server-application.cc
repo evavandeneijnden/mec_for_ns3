@@ -365,7 +365,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             }
             else {
                 //Server/queue unstable
-                m_expectedResponseTime = 1000;
+                m_expectedResponseTime = 100;
             }
 
             outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << m_expectedResponseTime << std::endl;
