@@ -76,7 +76,7 @@ namespace ns3 {
 
         void HandleRead (Ptr<Socket> socket);
 
-        void SendMecHandover(InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
+        void SendMecHandover(InetSocketAddress ueAddress, InetSocketAddress newMecAddress, InetSocketAddress currentMecAddress);
         void SendUeHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress, InetSocketAddress currentMecAddress);
 
         uint32_t m_count; //!< Maximum number of packets the application will send

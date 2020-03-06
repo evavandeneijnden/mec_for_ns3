@@ -68,7 +68,7 @@ namespace ns3 {
         void HandleRead (Ptr<Socket> socket);
 
         void SendResponseTimeUpdate(void);
-        void SendUeTransfer(Ipv4Address newAddress);
+        void SendUeTransfer(InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
         void SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet);
 //        void SendRequestEcho(void);
 

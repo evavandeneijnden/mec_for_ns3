@@ -249,11 +249,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         m_socket->SetRecvCallback(MakeCallback (&MecHoServerApplication::HandleRead, this));
         m_socket->SetAllowBroadcast(false);
 
-        //Send ResponseTimeupdates only if metric is 0 --> delay
-        if (metric == 0){
-            SendResponseTimeUpdate();
-        }
-
+        SendResponseTimeUpdate();
 
         //Make socket for each server
         for (std::vector<InetSocketAddress>::iterator it = m_allServers.begin(); it != m_allServers.end(); ++it){
@@ -368,7 +364,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 m_expectedResponseTime = 100;
             }
 
-            outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << m_expectedResponseTime << std::endl;
+            outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << m_expectedResponseTime <<  ", " << std::to_string(myClients.size()) << std::endl;
 //            outfile << "Args: " << std::to_string(serviceLambda) << ", " << std::to_string(serviceRho) << ", " << std::to_string(expectedServiceResponseTime) << ", " <<
 //                std::to_string(pingLambda) << ", " << std::to_string(pingRho) << ", " << std::to_string(expectedPingResponseTime) << ", " << std::to_string(handoverLambda) <<
 //                ", " << std::to_string(handoverRho) << ", " << std::to_string(expectedHandoverResponseTime) <<  ", " << std::to_string(MEC_RATE) << std::endl;
@@ -398,7 +394,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     }
 
     void
-    MecHoServerApplication::SendUeTransfer (Ipv4Address newAddress)
+    MecHoServerApplication::SendUeTransfer (InetSocketAddress ueAddress, InetSocketAddress newMecAddress)
     {
         NS_LOG_FUNCTION (this);
         if (Simulator::Now() > noSendUntil){
@@ -406,11 +402,11 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             //Get string representation of UE address
             std::stringstream ss;
             std::stringstream os;
-            newAddress.Print(os);
+            ueAddress.GetIpv4().Print(os);
             ss << os.rdbuf();
-            std::string addrString = ss.str();
+            std::string ueAddrString = ss.str();
 
-            std::string fillString = "7/" + addrString + "/";
+            std::string fillString = "7/" + ueAddrString + "/";
             std::regex re("7/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/");
             std::smatch match;
             NS_ASSERT(std::regex_search(fillString, match, re));
@@ -422,10 +418,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace(p);
-            m_socket->SendTo(p, 0, InetSocketAddress(newAddress, 1000));
+            m_socket->SendTo(p, 0, newMecAddress);
         }
         else {
-            m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this, newAddress);
+            m_transferEvent = Simulator::Schedule(noSendUntil, &MecHoServerApplication::SendUeTransfer, this, ueAddress, newMecAddress);
         }
         ueTransferCounter++;
 
@@ -517,24 +513,35 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                     case 4: {
                         //handover command from orc
-                        //Get new MEC address
-                        std::string addressString = args[1];
-                        std::string portString = args[2];
+                        //Get ue address
+                        std::string ueAddressString = args[1];
+                        std::string uePortString = args[2];
 
-                        Ipv4Address newAddress = Ipv4Address();
-                        newAddress.Set(addressString.c_str());
+                        Ipv4Address ueAddress = Ipv4Address();
+                        ueAddress.Set(ueAddressString.c_str());
 
-                        int newPort = int(std::stoi(portString));
+                        int newPort = int(std::stoi(uePortString));
 
-                        m_newAddress = newAddress;
+                        m_newAddress = ueAddress;
                         m_newPort = newPort;
-                        InetSocketAddress newInet = InetSocketAddress(m_newAddress, m_newPort);
+                        InetSocketAddress ueInet = InetSocketAddress(m_newAddress, m_newPort);
+
+                        //Get new MEC address
+                        std::string mecAddressString = args[3];
+                        std::string mecPortString = args[4];
+
+                        Ipv4Address mecAddress = Ipv4Address();
+                        mecAddress.Set(mecAddressString.c_str());
+
+                        int mecPort = int(std::stoi(mecPortString));
+
+                        InetSocketAddress mecInet = InetSocketAddress(mecAddress, mecPort);
 
                         m_noHandovers++;
 
-                        myClients.erase(newInet);
+                        myClients.erase(ueInet);
                         //Initiate handover
-                        Simulator::Schedule(MilliSeconds(0 + (randomness->GetValue())), &MecHoServerApplication::SendUeTransfer, this, m_newAddress);
+                        Simulator::Schedule(MilliSeconds(0 + (randomness->GetValue())), &MecHoServerApplication::SendUeTransfer, this, ueInet, mecInet);
                         handoverCommandCounter++;
                         break;
                     }

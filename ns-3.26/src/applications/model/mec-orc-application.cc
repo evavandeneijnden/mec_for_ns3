@@ -288,8 +288,8 @@ namespace ns3 {
         std::string portString = ss2.str();
 
         //Used to provide a no-send time (in ms) to the UE so it doesn't try to send messages mid handover; wait until handover has been processed by current AND new MEC
-        int currentValue = responseTimes.find(currentMecAddress)->second;
-        int newValue = responseTimes.find(newMecAddress)->second;
+        int currentValue = responseTimes[currentMecAddress];
+        int newValue = responseTimes[newMecAddress];
 
         std::fstream outfile;
         outfile.open(m_filename, std::ios::app);
@@ -297,7 +297,7 @@ namespace ns3 {
         int handoverTime = -1;
         if ((currentValue != -1) && (newValue != -1)){
             handoverTime = currentValue + newValue;
-            outfile << Simulator::Now().GetSeconds() << " ,handoverTime: " << std::to_string(handoverTime) << std::endl;
+            outfile << Simulator::Now().GetSeconds() << " ,handoverTime: " << std::to_string(handoverTime) << ", " << std::to_string(currentValue) << ", " << std::to_string(newValue) << std::endl;
         }
         else {
             outfile << "At least one param not found: " << std::to_string(currentValue) <<  ", " << std::to_string(newValue) << std::endl;
@@ -321,7 +321,7 @@ namespace ns3 {
     }
 
     void
-    MecOrcApplication::SendMecHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress)
+    MecOrcApplication::SendMecHandover (InetSocketAddress ueAddress, InetSocketAddress newMecAddress, InetSocketAddress currentMecAddress)
     {
         NS_LOG_FUNCTION (this);
         //Convert ueAddress into string
@@ -338,7 +338,7 @@ namespace ns3 {
         std::stringstream os2;
         newMecAddr.Print(os2);
         ss2 << os2.rdbuf();
-        std::string newMecAddrString = ss.str();
+        std::string newMecAddrString = ss2.str();
 
         //Create packet payload
         std::string fillString = "4/" + ueAddrString + "/" + std::to_string(ueAddress.GetPort()) + "/" + newMecAddrString + "/" + std::to_string(newMecAddress.GetPort()) + "/";
@@ -353,7 +353,7 @@ namespace ns3 {
         // so that tags added to the packet can be sent as well
         m_txTrace(p);
 
-        m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
+        m_socket->SendTo(p, 0, currentMecAddress);
         mecHandoverCounter++;
     }
 
@@ -473,7 +473,7 @@ namespace ns3 {
                                 if(currentIpv4 == bestMec){
                                     InetSocketAddress newMecAddress = current;
                                     SendUeHandover(ueAddress, newMecAddress, currentMecAddr);
-                                    SendMecHandover(ueAddress, newMecAddress);
+                                    SendMecHandover(ueAddress, newMecAddress, currentMecAddr);
                                     found = true;
                                 }
                             }
@@ -575,7 +575,7 @@ namespace ns3 {
 
                             InetSocketAddress newMecAddress = m_allServers[bestMecIndex];
                             SendUeHandover(ueAddress, newMecAddress, currentMecAddr);
-                            SendMecHandover(ueAddress, newMecAddress);
+                            SendMecHandover(ueAddress, newMecAddress, currentMecAddr);
                         }
                         locationUpdateCounter++;
                         break;
