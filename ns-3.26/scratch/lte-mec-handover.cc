@@ -53,7 +53,7 @@ double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
 //DO NOT change between experiments
-const double simTime = 200; //in seconds
+const double simTime = 1820; //in seconds
 const int numberOfUes = 100;
 
 const uint32_t ORC_PACKET_SIZE = 256; //in bytes
@@ -65,7 +65,7 @@ const uint32_t PING_INTERVAL = 1000; //in ms
 const uint32_t WAITING_TIME_UPDATE_INTERVAL = 1000; //in ms
 const uint32_t SERVICE_INTERVAL = 100; //in ms
 
-double SERVER_LOAD = 0.9; //between 0 and 1
+double SERVER_LOAD = 0.5; //between 0 and 1
 std::vector<double> load_distribution{0.4,0.5,0.1}; //the percentage of the total capacity each server will have
 
 double HYSTERESIS = 0.15; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
@@ -104,7 +104,7 @@ double lambda; //Number of incoming jobs/messages per ms (system wide)
 double total_mec_rate; //in jobs/ms
 std::vector<double> mec_rates;
 
-std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results" + std::to_string(METRIC) + std::to_string(TRIGGER) + "/172";
+std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results" + std::to_string(METRIC) + std::to_string(TRIGGER) + "/";
 std::string timefile = EXPERIMENT_NAME + "TIMEFILE.txt";
 std::string traceFile = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/mobility/" + std::to_string(numberOfUes) + "trace.tcl";
 
@@ -558,17 +558,11 @@ int
 main (int argc, char *argv[]) {
 
     //Set load variables
-    std::fstream outfile;
-    outfile.open(timefile, std::ios::app);
     lambda = (double(1.0/PING_INTERVAL) + double(1.0/SERVICE_INTERVAL)) * (double)numberOfUes;
-    outfile << "Lambda vars: " << std::to_string(double(1.0/PING_INTERVAL)) << ", " << std::to_string(double(1.0/SERVICE_INTERVAL)) << ", " << std::to_string((double)numberOfUes) << std::endl;
     total_mec_rate = lambda/SERVER_LOAD; // in jobs/ms
-    outfile << "Load variables: lambda = " << std::to_string(lambda) << ", total_mec_rate = " << std::to_string(total_mec_rate) << std::endl;
     mec_rates.push_back((double)load_distribution[0]*total_mec_rate);
     mec_rates.push_back((double)load_distribution[1]*total_mec_rate);
     mec_rates.push_back((double)load_distribution[2]*total_mec_rate);
-    outfile << "Server rates: " << std::to_string((double)load_distribution[0]*total_mec_rate) << ", " << std::to_string((double)load_distribution[1]*total_mec_rate) << ", " <<
-        std::to_string((double)load_distribution[2]*total_mec_rate) << std::endl;
 
     lteHelper = CreateObject<LteHelper>();
     lteHelper->SetHandoverAlgorithmType("ns3::A2A4RsrqHandoverAlgorithm");
@@ -622,7 +616,7 @@ main (int argc, char *argv[]) {
     std::chrono::duration<double> elapsed_seconds = experiment_end-experiment_start;
     std::time_t end_time = std::chrono::system_clock::to_time_t(experiment_end);
 
-//    std::fstream outfile;
+    std::fstream outfile;
     outfile.open(timefile, std::ios::app);
     outfile << "Finished experiment at " << std::ctime(&end_time) << ". Elapsed time: " << elapsed_seconds.count() << " seconds." << std::endl;
 

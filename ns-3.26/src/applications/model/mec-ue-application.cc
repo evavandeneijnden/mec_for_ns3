@@ -589,7 +589,7 @@ namespace ns3 {
                         int64_t delay = (Simulator::Now() - sendTimes[0]).GetMilliSeconds() ;
                         sendTimes.erase(sendTimes.begin());
                         Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
-                        outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << delay << "," << myMobility->GetPosition() << std::endl;
+                        outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << myMobility->GetPosition() << "," << delay << std::endl;
                         serviceResponseCounter++;
                         break;
                     }
@@ -628,8 +628,9 @@ namespace ns3 {
                         //Log handover, time, my address, old MEC, new MEC and no-send period duration in ms
                         std::fstream outfile;
                         outfile.open(m_filename, std::ios::app);
+                        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
                         outfile << "Handover," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << m_mecIp << ","
-                                                << newAddress << "," << args[3] << std::endl;
+                                                << newAddress << "," << myMobility->GetPosition() << ", " << args[3] << std::endl;
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
                         //Set current_server socket to new server address

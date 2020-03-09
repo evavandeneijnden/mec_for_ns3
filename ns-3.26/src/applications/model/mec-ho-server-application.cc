@@ -364,7 +364,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                 m_expectedResponseTime = 100;
             }
 
-            outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << m_expectedResponseTime <<  ", " << std::to_string(myClients.size()) << std::endl;
+            outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << std::to_string(myClients.size()) <<  ", " << m_expectedResponseTime << std::endl;
 //            outfile << "Args: " << std::to_string(serviceLambda) << ", " << std::to_string(serviceRho) << ", " << std::to_string(expectedServiceResponseTime) << ", " <<
 //                std::to_string(pingLambda) << ", " << std::to_string(pingRho) << ", " << std::to_string(expectedPingResponseTime) << ", " << std::to_string(handoverLambda) <<
 //                ", " << std::to_string(handoverRho) << ", " << std::to_string(expectedHandoverResponseTime) <<  ", " << std::to_string(MEC_RATE) << std::endl;

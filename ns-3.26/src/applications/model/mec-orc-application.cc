@@ -297,7 +297,6 @@ namespace ns3 {
         int handoverTime = -1;
         if ((currentValue != -1) && (newValue != -1)){
             handoverTime = currentValue + newValue;
-            outfile << Simulator::Now().GetSeconds() << " ,handoverTime: " << std::to_string(handoverTime) << ", " << std::to_string(currentValue) << ", " << std::to_string(newValue) << std::endl;
         }
         else {
             outfile << "At least one param not found: " << std::to_string(currentValue) <<  ", " << std::to_string(newValue) << std::endl;
@@ -484,11 +483,12 @@ namespace ns3 {
                     case 5: {
                         // Response time update
                         //TODO remove logging after debug
-                        std::fstream outfile;
-                        outfile.open(m_filename, std::ios::app);
-                        outfile << "Reponse time update: " << args[1] << std::endl;
+
                         int newResponseTime = stoi(args[1]);
                         InetSocketAddress sendAddress = InetSocketAddress::ConvertFrom(from);
+                        std::fstream outfile;
+                        outfile.open(m_filename, std::ios::app);
+                        outfile <<  Simulator::Now().GetSeconds() << " - Response time update: " << sendAddress.GetIpv4()  << ", " << args[1] << std::endl;
 
                         if (responseTimes.find(sendAddress) != responseTimes.end()) {
                             //Element already exists in map
