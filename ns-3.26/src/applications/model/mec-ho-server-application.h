@@ -67,9 +67,10 @@ namespace ns3 {
 
         void HandleRead (Ptr<Socket> socket);
 
-        void SendResponseTimeUpdate(void);
+        void SendResponseTimeUpdate(Time responseTime);
         void SendUeTransfer(InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
         void SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet);
+        Time HandleQueue (Ptr<Packet> newPacket);
 //        void SendRequestEcho(void);
 
 
@@ -135,6 +136,9 @@ namespace ns3 {
 
         Ptr<UniformRandomVariable> randomness;
 
+        std::vector<std::pair<Ptr<Packet>, Time>> processingQueue;
+        Ptr<ExponentialRandomVariable> processingTimer;
+        int queueCounter = 0;
     };
 
 
