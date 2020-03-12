@@ -149,7 +149,7 @@ namespace ns3 {
         m_data_report = 0;
         m_requestBlocked = false;
         myCellId = 0;
-        requestCounter = 0;
+        packetIdCounter = 0;
 
         serviceRequestCounter = 0;
         serviceResponseCounter = 0;
@@ -159,6 +159,7 @@ namespace ns3 {
         firstRequestCounter = 0;
         sendPositionCounter = 0;
         sendMeasurementReportCounter = 0;
+        requestCounter = 0;
     }
 
     MecUeApplication::~MecUeApplication()
@@ -364,8 +365,8 @@ namespace ns3 {
         NS_LOG_FUNCTION(this);
 
         //Create packet payload
-        std::string fillString = "8/" + std::to_string(GetCellId()) + "/";
-        std::regex re("8/[0-9]+/");
+        std::string fillString = "8/" + std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/";
+        std::regex re("8/[0-9]+/[0-9]+/");
         std::smatch match;
         NS_ASSERT(std::regex_search(fillString, match, re));
         uint8_t *buffer = GetFilledString(fillString, m_size);
@@ -378,7 +379,8 @@ namespace ns3 {
         m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-        sendTimes.push_back(Simulator::Now());
+//        sendTimes.push_back(Simulator::Now());
+        openServiceRequests[packetIdCounter] = Simulator::Now();
 
         firstRequestCounter ++;
     }
@@ -400,13 +402,15 @@ namespace ns3 {
             NS_ASSERT(Simulator::Now() >= m_noSendUntil);
             if (m_requestBlocked){
                 //UE has tried to send during no-send period
-                sendTimes.push_back(requestBlockedTime);
+//                sendTimes.push_back(requestBlockedTime);
+                openServiceRequests[packetIdCounter] = requestBlockedTime;
             }
             else {
-                sendTimes.push_back(Simulator::Now());
+//                sendTimes.push_back(Simulator::Now());
+                openServiceRequests[packetIdCounter] = Simulator::Now();
             }
             //Create packet payload
-            std::string fillString = "1/" + std::to_string(GetCellId()) + "/" + packetIdCounter + "/";
+            std::string fillString = "1/" + std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/";
             packetIdCounter++;
             std::regex re("1/[0-9]+/[0-9]+/");
             std::smatch match;
@@ -472,9 +476,10 @@ namespace ns3 {
     void
     MecUeApplication::SendPing (void)
     {
-        NS_LOG_FUNCTION (this << requestCounter);
+        NS_LOG_FUNCTION (this);
         m_pingSent.clear();
         int mecCounter = 0;
+        std::list<int> batchIds;
         for (InetSocketAddress mec: m_allServers){
             if (Simulator::Now() < m_noSendUntil){
 //                m_requestSent = Simulator::Now();
@@ -483,11 +488,9 @@ namespace ns3 {
             }
             else {
                 NS_ASSERT(Simulator::Now() > m_noSendUntil);
-                m_pingSent.insert(std::pair<Ipv4Address, Time>(mec.GetIpv4(), Simulator::Now()));
-
                 //Create packet payload
                 std::string fillString = "2/";
-                fillString.append(std::to_string(GetCellId()) + "/" + packetIdCounter + "/");
+                fillString.append(std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/");
                 packetIdCounter++;
                 std::regex re("2/[0-9]+/[0-9]+/");
                 std::smatch match;
@@ -502,9 +505,12 @@ namespace ns3 {
 
                 //Determine correct server socket and send
                 Simulator::Schedule(MicroSeconds(10*mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
+                pingSendTimes[packetIdCounter] = Simulator::Now() + MicroSeconds(10*mecCounter);
+                batchIds.push_back(packetIdCounter);
             }
             mecCounter++;
         }
+        openPingRequests.push_back(std::make_pair(batchIds,std::map<Ipv4Address,int64_t>()));
         m_sendPingEvent = Simulator::Schedule(m_pingInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendPing, this);
         requestCounter ++;
     }
@@ -587,8 +593,11 @@ namespace ns3 {
                         //This is a service response from my MEC
                         std::fstream outfile;
                         outfile.open(m_filename, std::ios::app);
-                        int64_t delay = (Simulator::Now() - sendTimes[0]).GetMilliSeconds() ;
-                        sendTimes.erase(sendTimes.begin());
+
+                        int packetId = std::stoi(args[2]);
+                        int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
+                        openServiceRequests.erase(packetId);
+
                         Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
                         outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << myMobility->GetPosition() << "," << delay << std::endl;
                         serviceResponseCounter++;
@@ -596,20 +605,35 @@ namespace ns3 {
                     }
                     case 2: {
                         //This is a ping response from a MEC
-                        Time sendTime;
-                        for (std::map<Ipv4Address,Time>::iterator it = m_pingSent.begin(); it != m_pingSent.end(); ++it){
-                            if((it->first) == from_ipv4){
-                                sendTime = it->second;
+
+                        //On receive, add <address, time> entry to measurement report that corresponds with the packetId
+                        int packetId = std::stoi(args[2]);
+                        std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>>::iterator ping_it;
+                        for(ping_it = openPingRequests.begin(); ping_it != openPingRequests.end(); ping_it++){
+                            std::list<int> batchIds = ping_it->first;
+                            std::map<Ipv4Address, int64_t> measurementReport = ping_it->second;
+
+                            if(std::find(batchIds.begin(), batchIds.end(), packetId) != batchIds.end()){
+                                //packetId is in this list
+                                int64_t delay = (Simulator::Now() - pingSendTimes[packetId]).GetMilliSeconds();
+                                measurementReport[from_ipv4] = delay;
+
+                                //If measurementreport is now complete, send it to ORC.
+                                if(measurementReport.size() == m_allServers.size()){
+                                    //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
+                                    Simulator::Schedule(MilliSeconds(randomness->GetValue()), &MecUeApplication::SendMeasurementReport, this, measurementReport);
+
+                                    //Remove this entry and any older ones that are now outdated from openPingRequests.
+                                    openPingRequests.erase(openPingRequests.begin(), std::find(openPingRequests.begin(), openPingRequests.end(), std::make_pair(batchIds, measurementReport)));
+                                    openPingRequests.erase(openPingRequests.begin());
+
+                                    //Remove pingSendTimes entries
+                                    for(std::list<int>::iterator it2 = batchIds.begin(); it2 != batchIds.end(); it2++){
+                                        pingSendTimes.erase(*it2);
+                                    }
+                                 }
                                 break;
                             }
-                        }
-                        int64_t delay = (Simulator::Now() - sendTime).GetMilliSeconds();
-                        std::map<Ipv4Address, int64_t>::iterator it;
-                        m_measurementReport.insert(std::pair<Ipv4Address, int64_t>(from_ipv4, delay));
-                        if(m_measurementReport.size() == m_allServers.size()){
-                            //There is a measurement for each mec, i.e. the report is now complete and ready to be sent to the ORC
-                            Simulator::Schedule(Seconds(0) + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendMeasurementReport, this, m_measurementReport);
-                            m_measurementReport.clear(); //Start with an empty report for the next iteration
                         }
                         pingResponseCounter++;
                         break;

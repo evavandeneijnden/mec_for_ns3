@@ -149,7 +149,8 @@ namespace ns3 {
         std::vector<Ptr<LteEnbNetDevice>> m_enbDevices;
         uint64_t ueImsi;
         uint16_t myCellId;
-        int packetIdCounter = 0;
+        int packetIdCounter;
+        int requestCounter;
         Time m_pingOffset;
         Time m_serviceOffset;
         uint32_t metric;
@@ -166,6 +167,10 @@ namespace ns3 {
         int sendMeasurementReportCounter;
 
         Ptr<UniformRandomVariable> randomness;
+
+        std::map<int,Time> openServiceRequests;
+        std::map<int,Time> pingSendTimes;
+        std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>> openPingRequests;
     };
 
 } // namespace ns3

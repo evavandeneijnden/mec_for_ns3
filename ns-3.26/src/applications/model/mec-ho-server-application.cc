@@ -410,13 +410,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         Time responseTime;
         if(processingQueue.size() > 0){
             //Response time == waiting for the previous packet (last in vector) to be done + own processing time
-            Time processingTime = MilliSeconds(processingTimer->GetValue());
+            Time processingTime = MilliSeconds(processingTimer->GetValue() + 1);
             responseTime = MilliSeconds(processingQueue.back().second + processingTime);
             queueCounter++;
         }
         else {
             //There is no queue; response time == own processing time
-            responseTime = MilliSeconds(processingTimer->GetValue());
+            responseTime = MilliSeconds(processingTimer->GetValue() + 1);
         }
         //Add new packet to queue
         std::pair<Ptr<Packet>, Time> queueItem = std::make_pair(newPacket, responseTime);
@@ -571,7 +571,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
                         //Create packet payload
-                        std::string fillString = "1/3/first/";
+                        std::string fillString = "1/3/" + args[2] + "/";
                         uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
                         //Send packet
