@@ -10,3 +10,7 @@ pybindgen*/
 .idea/
 cmake-build-debug/
 ns-3.26/scratch/lena-simple-epc.cc
+results*
+ns-3.26/scratch/lte-mec-handover*.cc
+ns-3.26/old_experiment_files/
+ns-3.26/pre_experiment_results/
