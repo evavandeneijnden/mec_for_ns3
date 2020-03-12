@@ -149,8 +149,7 @@ namespace ns3 {
         std::vector<Ptr<LteEnbNetDevice>> m_enbDevices;
         uint64_t ueImsi;
         uint16_t myCellId;
-        int requestCounter;
-        int serviceCounter;
+        int packetIdCounter = 0;
         Time m_pingOffset;
         Time m_serviceOffset;
         uint32_t metric;

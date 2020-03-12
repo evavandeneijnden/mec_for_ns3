@@ -406,8 +406,9 @@ namespace ns3 {
                 sendTimes.push_back(Simulator::Now());
             }
             //Create packet payload
-            std::string fillString = "1/" + std::to_string(GetCellId()) + "/";
-            std::regex re("1/[0-9]+/");
+            std::string fillString = "1/" + std::to_string(GetCellId()) + "/" + packetIdCounter + "/";
+            packetIdCounter++;
+            std::regex re("1/[0-9]+/[0-9]+/");
             std::smatch match;
             NS_ASSERT(std::regex_search(fillString, match, re));
             uint8_t *buffer = GetFilledString(fillString, m_size);
@@ -424,7 +425,6 @@ namespace ns3 {
 
             m_requestBlocked = false;
             serviceRequestCounter++;
-
         }
     }
     void
@@ -487,8 +487,9 @@ namespace ns3 {
 
                 //Create packet payload
                 std::string fillString = "2/";
-                fillString.append(std::to_string(GetCellId()) + "/");
-                std::regex re("2/[0-9]+/");
+                fillString.append(std::to_string(GetCellId()) + "/" + packetIdCounter + "/");
+                packetIdCounter++;
+                std::regex re("2/[0-9]+/[0-9]+/");
                 std::smatch match;
                 NS_ASSERT(std::regex_search(fillString, match, re));
                 uint8_t *buffer = GetFilledString(fillString, m_size);
