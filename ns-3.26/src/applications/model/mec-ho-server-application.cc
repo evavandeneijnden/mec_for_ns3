@@ -138,6 +138,8 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         handoverCommandCounter = 0;
         handoverDataCounter = 0;
         firstRequestCounter = 0;
+
+        outfile.open(m_filename, std::ios::app);
     }
 
     MecHoServerApplication::~MecHoServerApplication()
@@ -152,12 +154,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
-        std::fstream outfile;
-        outfile.open(m_filename, std::ios::app);
-        outfile << "Sanity check: " << std::to_string(responseTimeUpdateCounter) << ", " << std::to_string(ueTransferCounter) <<
-            ", " << std::to_string(echoCounter) << ", " << std::to_string(serviceRequestCounter) << ", " <<
-            std::to_string(pingRequestCounter) << ", " << std::to_string(handoverCommandCounter) << ", " <<
-            std::to_string(handoverDataCounter) << ", " << std::to_string(firstRequestCounter) << std::endl;
+        outfile << "Sanity check: " << std::to_string(responseTimeUpdateCounter) << "/" << std::to_string(ueTransferCounter) <<
+            "/" << std::to_string(echoCounter) << "/" << std::to_string(serviceRequestCounter) << "/" <<
+            std::to_string(pingRequestCounter) << "/" << std::to_string(handoverCommandCounter) << "/" <<
+            std::to_string(handoverDataCounter) << "/" << std::to_string(firstRequestCounter) << std::endl;
         outfile << "QueueCounter: " << queueCounter << std::endl;
         outfile.close();
 
@@ -321,13 +321,13 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     MecHoServerApplication::SendResponseTimeUpdate (Time responseTime) {
         NS_LOG_FUNCTION(this);
         NS_ASSERT(m_sendEvent.IsExpired());
-        std::fstream outfile;
-        outfile.open(m_filename, std::ios::app);
 
         m_expectedResponseTime = responseTime.GetMilliSeconds();
 
-        outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << std::to_string(myClients.size()) <<  ", " << m_expectedResponseTime << std::endl;
-        outfile.close();
+        if(Simulator::Now().GetSeconds() >= 300.0){
+            outfile << "Server response time, " << Simulator::Now().GetSeconds() << "/" << m_thisIpAddress << "/" << std::to_string(myClients.size()) <<  "/" << m_expectedResponseTime << std::endl;
+        }
+
 
         //Create packet payload
         std::string fillString = "5/" + std::to_string(m_expectedResponseTime) + "/";

@@ -36,6 +36,7 @@
 #include "ns3/double.h"
 #include "ns3/trace-source-accessor.h"
 #include "ns3/vector.h"
+#include <fstream>
 
 namespace ns3 {
 
@@ -115,6 +116,8 @@ namespace ns3 {
         int measurementReportCounter;
         int responseTimeUpdateCounter;
         int locationUpdateCounter;
+
+        std::fstream outfile;
 
     };
 

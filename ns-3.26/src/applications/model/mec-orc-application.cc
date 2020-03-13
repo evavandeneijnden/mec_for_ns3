@@ -101,6 +101,8 @@ namespace ns3 {
         responseTimeUpdateCounter = 0;
         locationUpdateCounter = 0;
 
+        outfile.open(m_filename, std::ios::app);
+
     }
 
     MecOrcApplication::~MecOrcApplication() {
@@ -117,10 +119,8 @@ namespace ns3 {
     MecOrcApplication::DoDispose (void) {
         NS_LOG_FUNCTION (this);
 
-        std::fstream outfile;
-        outfile.open(m_filename, std::ios::app);
-        outfile << "Sanity check: " << std::to_string(ueHandoverCounter) << ", " << std::to_string(mecHandoverCounter) <<
-            ", " << std::to_string(measurementReportCounter) << ", " << std::to_string(responseTimeUpdateCounter) << ", " <<
+        outfile << "Sanity check: " << std::to_string(ueHandoverCounter) << "/" << std::to_string(mecHandoverCounter) <<
+            "/" << std::to_string(measurementReportCounter) << "/" << std::to_string(responseTimeUpdateCounter) << "/" <<
             std::to_string(locationUpdateCounter) << std::endl;
         outfile.close();
 
@@ -299,10 +299,7 @@ namespace ns3 {
             handoverTime = currentValue + newValue;
         }
         else {
-            std::fstream outfile;
-            outfile.open(m_filename, std::ios::app);
-            outfile << "At least one param not found: " << std::to_string(currentValue) <<  ", " << std::to_string(newValue) << std::endl;
-            outfile.close();
+            outfile << "At least one param not found: " << std::to_string(currentValue) <<  "/" << std::to_string(newValue) << std::endl;
         }
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
@@ -485,14 +482,9 @@ namespace ns3 {
                     }
                     case 5: {
                         // Response time update
-                        //TODO remove logging after debug
 
                         int newResponseTime = stoi(args[1]);
                         InetSocketAddress sendAddress = InetSocketAddress::ConvertFrom(from);
-                        std::fstream outfile;
-                        outfile.open(m_filename, std::ios::app);
-                        outfile <<  Simulator::Now().GetSeconds() << " - Response time update: " << sendAddress.GetIpv4()  << ", " << args[1] << std::endl;
-                        outfile.close();
 
                         if (responseTimes.find(sendAddress) != responseTimes.end()) {
                             //Element already exists in map

@@ -160,6 +160,8 @@ namespace ns3 {
         sendPositionCounter = 0;
         sendMeasurementReportCounter = 0;
         requestCounter = 0;
+
+
     }
 
     MecUeApplication::~MecUeApplication()
@@ -181,13 +183,28 @@ namespace ns3 {
     MecUeApplication::DoDispose (void)
     {
         NS_LOG_FUNCTION (this);
-
-        std::fstream outfile;
         outfile.open(m_filename, std::ios::app);
-        outfile << "Sanity check: " << std::to_string(serviceRequestCounter) << ", " << std::to_string(serviceResponseCounter) <<
-                ", " << std::to_string(pingRequestCounter) << ", " << std::to_string(pingResponseCounter) << ", " <<
-                std::to_string(handoverCommandCounter) << ", " << std::to_string(firstRequestCounter) << ", " << std::to_string(sendPositionCounter) <<
-                ", " << std::to_string(sendMeasurementReportCounter) << std::endl;
+
+        std::map<int, std::tuple<int,int,double>>::iterator delayIt;
+        for (delayIt = delays.begin(); delayIt != delays.end(); delayIt++){
+            outfile << "delay/" << m_thisIpAddress << "/" << delayIt->first << "/" << std::get<2>(delayIt->second) << std::endl;
+        }
+
+        std::map<int,int>::iterator handoverIt;
+        for(handoverIt = handovers.begin(); handoverIt != handovers.end(); handoverIt++){
+            outfile << "handovers/" << m_thisIpAddress << "/" << handoverIt->first << "/" << handoverIt->second << std::endl;
+        }
+
+        std::vector<Vector>::iterator positionIt;
+        for(positionIt = handoverPositions.begin(); positionIt != handoverPositions.end(); positionIt++){
+            outfile << "handoverPosition/" << m_thisIpAddress << "/" << (*positionIt) << std::endl;
+        }
+
+
+        outfile << "Sanity check: " << std::to_string(serviceRequestCounter) << "/" << std::to_string(serviceResponseCounter) <<
+                "/" << std::to_string(pingRequestCounter) << "/" << std::to_string(pingResponseCounter) << "/" <<
+                std::to_string(handoverCommandCounter) << "/" << std::to_string(firstRequestCounter) << "/" << std::to_string(sendPositionCounter) <<
+                "/" << std::to_string(sendMeasurementReportCounter) << std::endl;
         outfile.close();
 
         Application::DoDispose ();
@@ -592,16 +609,19 @@ namespace ns3 {
                 switch(std::stoi(args[0])){
                     case 1: {
                         //This is a service response from my MEC
-                        std::fstream outfile;
-                        outfile.open(m_filename, std::ios::app);
-
                         int packetId = std::stoi(args[2]);
                         int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
                         openServiceRequests.erase(packetId);
 
-                        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
-                        outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << myMobility->GetPosition() << "," << delay << std::endl;
-                        outfile.close();
+                        if (Simulator::Now() >= 300.0){
+                            std::tuple<int,int,double> runningMean = delays[int(Simulator::Now().GetSeconds())];
+                            int newTotalDelay = std::get<0>(runningMean) + delay;
+                            int newCount = std::get<1>(runningMean) + 1;
+                            int newMean = double(newTotalDelay)/double(newCount);
+                            std::tuple<int,int,double> newEntry = std::make_tuple(newTotalDelay, newCount, newMean);
+                            delays[int(Simulator::Now().GetSeconds())] = newEntry;
+                        }
+
                         serviceResponseCounter++;
                         break;
                     }
@@ -653,12 +673,12 @@ namespace ns3 {
 
                         //Update MEC address
                         //Log handover, time, my address, old MEC, new MEC and no-send period duration in ms
-                        std::fstream outfile;
-                        outfile.open(m_filename, std::ios::app);
+
+                        int numberOfHandovers = handovers[int(Simulator::Now().GetSeconds())];
+                        handovers[int(Simulator::Now().GetSeconds())] = numberOfHandovers + 1;
                         Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
-                        outfile << "Handover," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << m_mecIp << ","
-                                                << newAddress << "," << myMobility->GetPosition() << ", " << args[3] << std::endl;
-                        outfile.close();
+                        handoverPositions.push_back(myMobility->GetPosition());
+
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
                         //Set current_server socket to new server address

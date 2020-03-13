@@ -40,6 +40,8 @@
 #include <iostream>
 #include "ns3/random-variable-stream.h"
 #include "ns3/double.h"
+#include <tuple>
+#include <fstream>
 
 namespace ns3 {
 
@@ -171,6 +173,11 @@ namespace ns3 {
         std::map<int,Time> openServiceRequests;
         std::map<int,Time> pingSendTimes;
         std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>> openPingRequests;
+
+        std::map<int, std::tuple<int,int,double>> delays; //Total delay, #delays, mean
+        std::map<int,int> handovers; //time-slot, number of handovers in this time slot
+        std::vector<Vector> handoverPositions;
+        std::fstream outfile;
     };
 
 } // namespace ns3

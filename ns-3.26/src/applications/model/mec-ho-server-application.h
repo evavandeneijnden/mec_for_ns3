@@ -36,6 +36,7 @@
 #include "ns3/trace-source-accessor.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/double.h"
+#include <fstream>
 
 namespace ns3 {
 
@@ -139,6 +140,7 @@ namespace ns3 {
         std::vector<std::pair<Ptr<Packet>, Time>> processingQueue;
         Ptr<ExponentialRandomVariable> processingTimer;
         int queueCounter = 0;
+        std::fstream outfile;
     };
 
 
