@@ -122,6 +122,7 @@ namespace ns3 {
         outfile << "Sanity check: " << std::to_string(ueHandoverCounter) << ", " << std::to_string(mecHandoverCounter) <<
             ", " << std::to_string(measurementReportCounter) << ", " << std::to_string(responseTimeUpdateCounter) << ", " <<
             std::to_string(locationUpdateCounter) << std::endl;
+        outfile.close();
 
         Application::DoDispose ();
     }
@@ -291,15 +292,17 @@ namespace ns3 {
         int currentValue = responseTimes[currentMecAddress];
         int newValue = responseTimes[newMecAddress];
 
-        std::fstream outfile;
-        outfile.open(m_filename, std::ios::app);
+
 
         int handoverTime = -1;
         if ((currentValue != -1) && (newValue != -1)){
             handoverTime = currentValue + newValue;
         }
         else {
+            std::fstream outfile;
+            outfile.open(m_filename, std::ios::app);
             outfile << "At least one param not found: " << std::to_string(currentValue) <<  ", " << std::to_string(newValue) << std::endl;
+            outfile.close();
         }
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
@@ -489,6 +492,7 @@ namespace ns3 {
                         std::fstream outfile;
                         outfile.open(m_filename, std::ios::app);
                         outfile <<  Simulator::Now().GetSeconds() << " - Response time update: " << sendAddress.GetIpv4()  << ", " << args[1] << std::endl;
+                        outfile.close();
 
                         if (responseTimes.find(sendAddress) != responseTimes.end()) {
                             //Element already exists in map

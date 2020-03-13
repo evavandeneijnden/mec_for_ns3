@@ -188,6 +188,7 @@ namespace ns3 {
                 ", " << std::to_string(pingRequestCounter) << ", " << std::to_string(pingResponseCounter) << ", " <<
                 std::to_string(handoverCommandCounter) << ", " << std::to_string(firstRequestCounter) << ", " << std::to_string(sendPositionCounter) <<
                 ", " << std::to_string(sendMeasurementReportCounter) << std::endl;
+        outfile.close();
 
         Application::DoDispose ();
     }
@@ -600,6 +601,7 @@ namespace ns3 {
 
                         Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
                         outfile <<"Delay, " << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << from_ipv4 << "," << myMobility->GetPosition() << "," << delay << std::endl;
+                        outfile.close();
                         serviceResponseCounter++;
                         break;
                     }
@@ -656,6 +658,7 @@ namespace ns3 {
                         Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
                         outfile << "Handover," << Simulator::Now().GetSeconds() << "," << m_thisIpAddress << "," << m_mecIp << ","
                                                 << newAddress << "," << myMobility->GetPosition() << ", " << args[3] << std::endl;
+                        outfile.close();
                         m_mecIp = newAddress;
                         m_mecPort = newPort;
                         //Set current_server socket to new server address

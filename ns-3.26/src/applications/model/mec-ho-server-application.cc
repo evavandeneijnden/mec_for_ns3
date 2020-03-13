@@ -159,6 +159,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
             std::to_string(pingRequestCounter) << ", " << std::to_string(handoverCommandCounter) << ", " <<
             std::to_string(handoverDataCounter) << ", " << std::to_string(firstRequestCounter) << std::endl;
         outfile << "QueueCounter: " << queueCounter << std::endl;
+        outfile.close();
 
         Application::DoDispose ();
     }
@@ -326,6 +327,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         m_expectedResponseTime = responseTime.GetMilliSeconds();
 
         outfile << "Server response time, " << Simulator::Now().GetSeconds() << ", " << m_thisIpAddress << ", " << std::to_string(myClients.size()) <<  ", " << m_expectedResponseTime << std::endl;
+        outfile.close();
 
         //Create packet payload
         std::string fillString = "5/" + std::to_string(m_expectedResponseTime) + "/";
