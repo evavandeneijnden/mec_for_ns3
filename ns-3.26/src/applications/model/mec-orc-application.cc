@@ -101,8 +101,6 @@ namespace ns3 {
         responseTimeUpdateCounter = 0;
         locationUpdateCounter = 0;
 
-        outfile.open(m_filename, std::ios::app);
-
     }
 
     MecOrcApplication::~MecOrcApplication() {
@@ -233,6 +231,8 @@ namespace ns3 {
         tempSocket->SetRecvCallback(MakeCallback(&MecOrcApplication::HandleRead, this));
         tempSocket->SetAllowBroadcast(false);
         m_socket = tempSocket;
+
+        outfile.open(m_filename, std::ios::app);
     }
 
     void

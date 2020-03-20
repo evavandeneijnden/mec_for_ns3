@@ -70,7 +70,7 @@ namespace ns3 {
 
         void SendResponseTimeUpdate(Time responseTime);
         void SendUeTransfer(InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
-        void SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet);
+        void SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet, std::string packetId);
         Time HandleQueue (Ptr<Packet> newPacket);
 //        void SendRequestEcho(void);
 

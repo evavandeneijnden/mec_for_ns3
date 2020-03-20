@@ -53,7 +53,7 @@ double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
 //DO NOT change between experiments
-const double simTime = 1820; //in seconds
+const double simTime = 200; //in seconds (1820)
 const int numberOfUes = 100;
 
 const uint32_t ORC_PACKET_SIZE = 256; //in bytes
@@ -74,7 +74,7 @@ int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the d
 
 //Handover strategy settings. Change between experiments
 int METRIC = 0; //Valid options are 0 for delay, 1 for distance
-int TRIGGER = 1; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
+int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
 
 
 
@@ -541,7 +541,7 @@ int StartSimulation(){
 
     lteHelper->EnableTraces ();
 //     Uncomment to enable PCAP tracing
-//    p2ph.EnablePcapAll("lena-epc-first");
+    p2ph.EnablePcapAll("handover");
 
     Simulator::Stop(Seconds(simTime));
     Simulator::Run();
@@ -619,6 +619,7 @@ main (int argc, char *argv[]) {
     std::fstream outfile;
     outfile.open(timefile, std::ios::app);
     outfile << "Finished experiment at " << std::ctime(&end_time) << ". Elapsed time: " << elapsed_seconds.count() << " seconds." << std::endl;
+    outfile.close();
 
     return simResult;
 

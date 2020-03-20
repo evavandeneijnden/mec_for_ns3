@@ -162,6 +162,7 @@ namespace ns3 {
         requestCounter = 0;
 
 
+
     }
 
     MecUeApplication::~MecUeApplication()
@@ -183,7 +184,6 @@ namespace ns3 {
     MecUeApplication::DoDispose (void)
     {
         NS_LOG_FUNCTION (this);
-        outfile.open(m_filename, std::ios::app);
 
         std::map<int, std::tuple<int,int,double>>::iterator delayIt;
         for (delayIt = delays.begin(); delayIt != delays.end(); delayIt++){
@@ -266,6 +266,8 @@ namespace ns3 {
             NS_LOG_ERROR("An invalid metric parameter was passed to the UE");
             StopApplication();
         }
+
+        outfile.open(m_filename, std::ios::app);
 
 
     }
@@ -399,6 +401,7 @@ namespace ns3 {
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
 //        sendTimes.push_back(Simulator::Now());
         openServiceRequests[packetIdCounter] = Simulator::Now();
+//        outfile << Simulator::Now().GetSeconds() << " - serviceRequest sent from " << m_thisIpAddress << " with ID " << firstRequestCounter << std::endl;
 
         firstRequestCounter ++;
     }
@@ -444,6 +447,7 @@ namespace ns3 {
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendServiceRequest, this);
+//            outfile <<  Simulator::Now().GetSeconds() << " - serviceRequest sent from " << m_thisIpAddress << " with ID " << packetIdCounter << std::endl;
 
             m_requestBlocked = false;
             serviceRequestCounter++;
@@ -509,6 +513,7 @@ namespace ns3 {
                 //Create packet payload
                 std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/");
+//                outfile << "packetID: " << packetIdCounter << std::endl;
                 packetIdCounter++;
                 std::regex re("2/[0-9]+/[0-9]+/");
                 std::smatch match;
@@ -523,6 +528,7 @@ namespace ns3 {
 
                 //Determine correct server socket and send
                 Simulator::Schedule(MicroSeconds(10*mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
+//                outfile << Simulator::Now().GetSeconds() << " - pingRequest sent from " << m_thisIpAddress << " with ID " << packetIdCounter << std::endl;
                 pingSendTimes[packetIdCounter] = Simulator::Now() + MicroSeconds(10*mecCounter);
                 batchIds.push_back(packetIdCounter);
             }
@@ -613,6 +619,8 @@ namespace ns3 {
                         int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
                         openServiceRequests.erase(packetId);
 
+//                        outfile << Simulator::Now().GetSeconds() << " - serviceRequest received for " << m_thisIpAddress << " with ID " << packetId << std::endl;
+
                         if (Simulator::Now() >= 300.0){
                             std::tuple<int,int,double> runningMean = delays[int(Simulator::Now().GetSeconds())];
                             int newTotalDelay = std::get<0>(runningMean) + delay;
@@ -630,6 +638,7 @@ namespace ns3 {
 
                         //On receive, add <address, time> entry to measurement report that corresponds with the packetId
                         int packetId = std::stoi(args[2]);
+//                        outfile << Simulator::Now().GetSeconds() << " - pingRequest received from " << inet_from.GetIpv4() << " with ID " << packetId << std::endl;
                         std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>>::iterator ping_it;
                         for(ping_it = openPingRequests.begin(); ping_it != openPingRequests.end(); ping_it++){
                             std::list<int> batchIds = ping_it->first;
