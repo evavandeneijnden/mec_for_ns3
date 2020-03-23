@@ -53,7 +53,7 @@ double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
 //DO NOT change between experiments
-const double simTime = 200; //in seconds (1820)
+const double simTime = 1820; //in seconds (1820)
 const int numberOfUes = 100;
 
 const uint32_t ORC_PACKET_SIZE = 256; //in bytes
@@ -75,6 +75,8 @@ int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the d
 //Handover strategy settings. Change between experiments
 int METRIC = 0; //Valid options are 0 for delay, 1 for distance
 int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
+
+int runNumber = 1; //Determines the settings for the random number generator & the mobility file to be used
 
 
 
@@ -104,9 +106,9 @@ double lambda; //Number of incoming jobs/messages per ms (system wide)
 double total_mec_rate; //in jobs/ms
 std::vector<double> mec_rates;
 
-std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results" + std::to_string(METRIC) + std::to_string(TRIGGER) + "/";
+std::string EXPERIMENT_NAME = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/results" + std::to_string(METRIC) + std::to_string(TRIGGER) + "/" + std::to_string(runNumber);
 std::string timefile = EXPERIMENT_NAME + "TIMEFILE.txt";
-std::string traceFile = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/mobility/" + std::to_string(numberOfUes) + "trace.tcl";
+std::string traceFile = "/home/ubuntu/vtt_model/ns3-MEC/ns-3.26/mobility/" + std::to_string(numberOfUes) + "Trace" + std::to_string(runNumber) + ".tcl";
 
 void printNodeConfiguration(std::string name, Ptr<Node> node) {
     NS_LOG_DEBUG("________FOR " << name << "(" << node->GetId() << ")___________");
@@ -587,6 +589,8 @@ main (int argc, char *argv[]) {
     InstallApplications();
 
     Packet::EnablePrinting();
+
+    RngSeedManager::SetRun(runNumber);
 
 //    NS_LOG_DEBUG("Show resulting configuration__________________");
 //    printNodeConfiguration("ROUTER", router);
