@@ -539,9 +539,9 @@ int StartSimulation(){
     ueApps.Start (Simulator::Now());
 
 
-    lteHelper->EnableTraces ();
+//    lteHelper->EnableTraces ();
 //     Uncomment to enable PCAP tracing
-    p2ph.EnablePcapAll("handover");
+//    p2ph.EnablePcapAll("handover");
 
     Simulator::Stop(Seconds(simTime));
     Simulator::Run();
