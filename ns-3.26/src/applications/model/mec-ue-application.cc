@@ -399,9 +399,7 @@ namespace ns3 {
         m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-//        sendTimes.push_back(Simulator::Now());
         openServiceRequests[packetIdCounter] = Simulator::Now();
-//        outfile << Simulator::Now().GetSeconds() << " - serviceRequest sent from " << m_thisIpAddress << " with ID " << firstRequestCounter << std::endl;
 
         firstRequestCounter ++;
     }
@@ -447,7 +445,6 @@ namespace ns3 {
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendServiceRequest, this);
-//            outfile <<  Simulator::Now().GetSeconds() << " - serviceRequest sent from " << m_thisIpAddress << " with ID " << packetIdCounter << std::endl;
 
             m_requestBlocked = false;
             serviceRequestCounter++;
@@ -513,8 +510,6 @@ namespace ns3 {
                 //Create packet payload
                 std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/");
-//                outfile << "packetID: " << packetIdCounter << std::endl;
-                packetIdCounter++;
                 std::regex re("2/[0-9]+/[0-9]+/");
                 std::smatch match;
                 NS_ASSERT(std::regex_search(fillString, match, re));
@@ -528,9 +523,9 @@ namespace ns3 {
 
                 //Determine correct server socket and send
                 Simulator::Schedule(MicroSeconds(10*mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
-//                outfile << Simulator::Now().GetSeconds() << " - pingRequest sent from " << m_thisIpAddress << " with ID " << packetIdCounter << std::endl;
                 pingSendTimes[packetIdCounter] = Simulator::Now() + MicroSeconds(10*mecCounter);
                 batchIds.push_back(packetIdCounter);
+                packetIdCounter++;
             }
             mecCounter++;
         }
@@ -619,9 +614,7 @@ namespace ns3 {
                         int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
                         openServiceRequests.erase(packetId);
 
-//                        outfile << Simulator::Now().GetSeconds() << " - serviceRequest received for " << m_thisIpAddress << " with ID " << packetId << std::endl;
-
-                        if (Simulator::Now() >= 300.0){
+                        if (Simulator::Now().GetSeconds() >= 300.0){
                             std::tuple<int,int,double> runningMean = delays[int(Simulator::Now().GetSeconds())];
                             int newTotalDelay = std::get<0>(runningMean) + delay;
                             int newCount = std::get<1>(runningMean) + 1;
@@ -638,16 +631,18 @@ namespace ns3 {
 
                         //On receive, add <address, time> entry to measurement report that corresponds with the packetId
                         int packetId = std::stoi(args[2]);
-//                        outfile << Simulator::Now().GetSeconds() << " - pingRequest received from " << inet_from.GetIpv4() << " with ID " << packetId << std::endl;
                         std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>>::iterator ping_it;
                         for(ping_it = openPingRequests.begin(); ping_it != openPingRequests.end(); ping_it++){
                             std::list<int> batchIds = ping_it->first;
+                            for (std::list<int>::iterator i = batchIds.begin(); i != batchIds.end(); i++){
+                            }
                             std::map<Ipv4Address, int64_t> measurementReport = ping_it->second;
 
-                            if(std::find(batchIds.begin(), batchIds.end(), packetId) != batchIds.end()){
+                            if(std::count(batchIds.begin(), batchIds.end(), packetId)){
                                 //packetId is in this list
                                 int64_t delay = (Simulator::Now() - pingSendTimes[packetId]).GetMilliSeconds();
                                 measurementReport[from_ipv4] = delay;
+                                std::replace(openPingRequests.begin(), openPingRequests.end(), *ping_it, std::make_pair(ping_it->first, measurementReport));
 
                                 //If measurementreport is now complete, send it to ORC.
                                 if(measurementReport.size() == m_allServers.size()){
