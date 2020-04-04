@@ -614,14 +614,14 @@ namespace ns3 {
                         int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
                         openServiceRequests.erase(packetId);
 
-                        if (Simulator::Now().GetSeconds() >= 300.0){
+//                        if (Simulator::Now().GetSeconds() >= 300.0){
                             std::tuple<int,int,double> runningMean = delays[int(Simulator::Now().GetSeconds())];
                             int newTotalDelay = std::get<0>(runningMean) + delay;
                             int newCount = std::get<1>(runningMean) + 1;
                             int newMean = double(newTotalDelay)/double(newCount);
                             std::tuple<int,int,double> newEntry = std::make_tuple(newTotalDelay, newCount, newMean);
                             delays[int(Simulator::Now().GetSeconds())] = newEntry;
-                        }
+//                        }
 
                         serviceResponseCounter++;
                         break;
@@ -694,6 +694,8 @@ namespace ns3 {
                         break;
                     }
                 }
+
+                delete[] buffer;
             }
         }
     }
