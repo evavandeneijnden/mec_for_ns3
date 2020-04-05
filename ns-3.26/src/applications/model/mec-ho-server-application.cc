@@ -402,18 +402,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION(this);
         //Update existing packet queue and toss old ones
-        std::vector<int> to_remove;
         for (int i = 0 ; i < int(processingQueue.size()) ; i++){
             std::pair<Ptr<Packet>, Time> currentPair = processingQueue[i];
             if (currentPair.second <= Simulator::Now()){
                 //This packet has already left the queue; remove it
-                to_remove.push_back(i);
+                processingQueue.erase(processingQueue.begin() + i);
             }
-        }
-
-        std::vector<int>::reverse_iterator to_remove_it;
-        for (to_remove_it=to_remove.rbegin(); to_remove_it < to_remove.rend(); to_remove_it++) {
-            processingQueue.erase(processingQueue.begin() + *to_remove_it);
         }
 
         //Calculate waiting time for packet
@@ -421,14 +415,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         if(processingQueue.size() > 0){
             //Response time == waiting for the previous packet (last in vector) to be done + own processing time
             Time processingTime = MilliSeconds(processingTimer->GetValue() + 1);
-            Time queueEmptyTime = processingQueue.back().second;
-            responseTime = queueEmptyTime + processingTime;
+            responseTime = MilliSeconds(processingQueue.back().second + processingTime);
             queueCounter++;
         }
         else {
             //There is no queue; response time == own processing time
-            responseTime = Simulator::Now() + MilliSeconds(processingTimer->GetValue() + 1);
-
+            responseTime = MilliSeconds(processingTimer->GetValue() + 1);
         }
         //Add new packet to queue
         std::pair<Ptr<Packet>, Time> queueItem = std::make_pair(newPacket, responseTime);
@@ -477,8 +469,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         int ue_cellId = stoi(args[1]);
                         //Echo packet back to sender with appropriate delay
-                        Time queueTime = HandleQueue(packet);
-                        Time responseTime = queueTime - Simulator::Now();
+                        Time responseTime = HandleQueue(packet);
                         std::string packetId = args[2];
                         int delay;
 
@@ -522,7 +513,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
+<<<<<<< HEAD
                         Time responseTime = HandleQueue(packet) - Simulator::Now();
+=======
+                        Time responseTime = HandleQueue(packet);
+//                        outfile << Simulator::Now().GetSeconds() << " - pingRequest received from " << m_echoAddress << " with ID " << args[2] << "/" << responseTime.GetMilliSeconds() << std::endl;
+>>>>>>> parent of 99e771c... Fixed dequeuing issue in servers and measurement report sending in UEs
 
                         //Make sure SendResponseTimeUpdate gets trigger once each ping interval
                         if (m_allUes[0] == inet_from){
@@ -564,7 +560,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         myClients.erase(ueInet);
                         //Initiate handover
-                        Time responseTime = HandleQueue(packet) - Simulator::Now();
+                        Time responseTime = HandleQueue(packet);
                         Simulator::Schedule(responseTime, &MecHoServerApplication::SendUeTransfer, this, ueInet, mecInet);
                         handoverCommandCounter++;
                         break;
@@ -608,8 +604,12 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         //Send packet
                         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
+<<<<<<< HEAD
                         Time leaveQueueTime = HandleQueue(packet);
                         Time responseTime = leaveQueueTime - Simulator::Now();
+=======
+                        Time responseTime = HandleQueue(packet);
+>>>>>>> parent of 99e771c... Fixed dequeuing issue in servers and measurement report sending in UEs
                         m_echoEvent = Simulator::Schedule(responseTime + MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, p , " ");
                         firstRequestCounter++;
                         break;
