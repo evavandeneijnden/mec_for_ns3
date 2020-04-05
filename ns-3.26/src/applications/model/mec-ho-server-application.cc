@@ -513,12 +513,8 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-<<<<<<< HEAD
-                        Time responseTime = HandleQueue(packet) - Simulator::Now();
-=======
                         Time responseTime = HandleQueue(packet);
 //                        outfile << Simulator::Now().GetSeconds() << " - pingRequest received from " << m_echoAddress << " with ID " << args[2] << "/" << responseTime.GetMilliSeconds() << std::endl;
->>>>>>> parent of 99e771c... Fixed dequeuing issue in servers and measurement report sending in UEs
 
                         //Make sure SendResponseTimeUpdate gets trigger once each ping interval
                         if (m_allUes[0] == inet_from){
@@ -604,12 +600,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         //Send packet
                         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
-<<<<<<< HEAD
-                        Time leaveQueueTime = HandleQueue(packet);
-                        Time responseTime = leaveQueueTime - Simulator::Now();
-=======
                         Time responseTime = HandleQueue(packet);
->>>>>>> parent of 99e771c... Fixed dequeuing issue in servers and measurement report sending in UEs
                         m_echoEvent = Simulator::Schedule(responseTime + MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, p , " ");
                         firstRequestCounter++;
                         break;
