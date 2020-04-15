@@ -103,11 +103,13 @@ namespace ns3 {
         void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec);
         void SendPosition(void);
         void PrintRoutes(void);
+        void HandlePingTimeout(std::list<int> batchIds);
 
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         Time m_serviceInterval; //!< Packet inter-send time
         Time m_pingInterval;
+        Time m_timeoutInterval = MilliSeconds(500);
         uint32_t m_size; //!< Size of the sent packet
 
 
@@ -117,6 +119,7 @@ namespace ns3 {
         EventId m_sendPingEvent;
         EventId m_sendServiceEvent;
         EventId m_sendPositionEvent;
+        EventId m_handleTimeoutEvent;
         uint8_t *m_data_request;
         uint8_t *m_data_ping;
         uint8_t *m_data_report;
@@ -138,9 +141,6 @@ namespace ns3 {
         Time m_noSendUntil;
         Time m_requestSent;
         Time requestBlockedTime;
-        std::vector<Time> sendTimes;
-        std::map<Ipv4Address,int64_t> m_measurementReport; //First argument is MECs address, second is observed delay in ms
-        std::map<Ipv4Address,Time> m_pingSent;
         std::vector<InetSocketAddress> m_allServers;
         std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
         Ptr<Socket> currentMecSocket;

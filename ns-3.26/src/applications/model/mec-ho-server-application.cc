@@ -153,11 +153,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION (this);
 
-        outfile << "Sanity check: " << std::to_string(responseTimeUpdateCounter) << "/" << std::to_string(ueTransferCounter) <<
-            "/" << std::to_string(echoCounter) << "/" << std::to_string(serviceRequestCounter) << "/" <<
-            std::to_string(pingRequestCounter) << "/" << std::to_string(handoverCommandCounter) << "/" <<
-            std::to_string(handoverDataCounter) << "/" << std::to_string(firstRequestCounter) << std::endl;
-        outfile << "QueueCounter: " << queueCounter << std::endl;
+//        outfile << "Sanity check: " << std::to_string(responseTimeUpdateCounter) << "/" << std::to_string(ueTransferCounter) <<
+//            "/" << std::to_string(echoCounter) << "/" << std::to_string(serviceRequestCounter) << "/" <<
+//            std::to_string(pingRequestCounter) << "/" << std::to_string(handoverCommandCounter) << "/" <<
+//            std::to_string(handoverDataCounter) << "/" << std::to_string(firstRequestCounter) << std::endl;
         outfile.close();
 
         Application::DoDispose ();
@@ -325,9 +324,9 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
         m_expectedResponseTime = responseTime.GetMilliSeconds();
 
-        if(Simulator::Now().GetSeconds() >= 300.0){
+//        if(Simulator::Now().GetSeconds() >= 300.0){
             outfile << "Server response time, " << Simulator::Now().GetSeconds() << "/" << m_thisIpAddress << "/" << std::to_string(myClients.size()) <<  "/" << m_expectedResponseTime << std::endl;
-        }
+//        }
 
 
         //Create packet payload
@@ -340,6 +339,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
         //Send packet
         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
+        free(buffer);
         m_txTrace(p);
         m_socket->Send(p);
 
@@ -370,6 +370,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
             //Create packet
             Ptr <Packet> p = Create<Packet>(buffer, UE_SIZE);
+            free(buffer);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace(p);
@@ -390,9 +391,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
         if(Simulator::Now() > noSendUntil){
             m_txTrace(packet);
             m_socket->SendTo(packet, 0, InetSocketAddress(echoAddress, 1000));
-//            if (packetId != " ") {
-//                outfile << Simulator::Now().GetSeconds() << " - Send echo to " << echoAddress << " with ID " << packetId << std::endl;
-//            }
             echoCounter++;
         }
         else {
@@ -405,24 +403,33 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
     {
         NS_LOG_FUNCTION(this);
         //Update existing packet queue and toss old ones
+        std::vector<int> to_remove;
         for (int i = 0 ; i < int(processingQueue.size()) ; i++){
             std::pair<Ptr<Packet>, Time> currentPair = processingQueue[i];
             if (currentPair.second <= Simulator::Now()){
                 //This packet has already left the queue; remove it
-                processingQueue.erase(processingQueue.begin() + i);
+                to_remove.push_back(i);
             }
         }
+
+        std::vector<int>::reverse_iterator to_remove_it;
+        for (to_remove_it=to_remove.rbegin(); to_remove_it < to_remove.rend(); to_remove_it++) {
+            processingQueue.erase(processingQueue.begin() + *to_remove_it);
+        }
+
         //Calculate waiting time for packet
         Time responseTime;
         if(processingQueue.size() > 0){
             //Response time == waiting for the previous packet (last in vector) to be done + own processing time
             Time processingTime = MilliSeconds(processingTimer->GetValue() + 1);
-            responseTime = MilliSeconds(processingQueue.back().second + processingTime);
-            queueCounter++;
+            Time queueEmptyTime = processingQueue.back().second;
+            responseTime = queueEmptyTime + processingTime;
         }
         else {
             //There is no queue; response time == own processing time
-            responseTime = MilliSeconds(processingTimer->GetValue() + 1);
+            Time processingTime = MilliSeconds(processingTimer->GetValue() + 1);
+            responseTime = Simulator::Now() + processingTime;
+
         }
         //Add new packet to queue
         std::pair<Ptr<Packet>, Time> queueItem = std::make_pair(newPacket, responseTime);
@@ -471,7 +478,8 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         m_echoAddress = inet_from.GetIpv4();
                         int ue_cellId = stoi(args[1]);
                         //Echo packet back to sender with appropriate delay
-                        Time responseTime = HandleQueue(packet);
+                        Time queueTime = HandleQueue(packet);
+                        Time responseTime = queueTime - Simulator::Now();
                         std::string packetId = args[2];
                         int delay;
 
@@ -491,7 +499,6 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
 
                         m_echoEvent = Simulator::Schedule(responseTime + MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, packet, packetId);
-//                        outfile << Simulator::Now().GetSeconds() << " - serviceRequest received from " << m_echoAddress << " with ID " << args[2] << "/" << responseTime.GetMilliSeconds() << std::endl;
                         serviceRequestCounter++;
                         break;
                     }
@@ -516,8 +523,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
                         }
                         m_echoAddress = inet_from.GetIpv4();
                         //Echo packet back to sender with appropriate delay
-                        Time responseTime = HandleQueue(packet);
-//                        outfile << Simulator::Now().GetSeconds() << " - pingRequest received from " << m_echoAddress << " with ID " << args[2] << "/" << responseTime.GetMilliSeconds() << std::endl;
+                        Time responseTime = HandleQueue(packet) - Simulator::Now();
 
                         //Make sure SendResponseTimeUpdate gets trigger once each ping interval
                         if (m_allUes[0] == inet_from){
@@ -559,7 +565,7 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         myClients.erase(ueInet);
                         //Initiate handover
-                        Time responseTime = HandleQueue(packet);
+                        Time responseTime = HandleQueue(packet) - Simulator::Now();
                         Simulator::Schedule(responseTime, &MecHoServerApplication::SendUeTransfer, this, ueInet, mecInet);
                         handoverCommandCounter++;
                         break;
@@ -603,12 +609,16 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
                         //Send packet
                         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
-                        Time responseTime = HandleQueue(packet);
+                        free(buffer);
+                        Time leaveQueueTime = HandleQueue(packet);
+                        Time responseTime = leaveQueueTime - Simulator::Now();
                         m_echoEvent = Simulator::Schedule(responseTime + MilliSeconds(delay), &MecHoServerApplication::SendEcho, this, m_echoAddress, p , " ");
                         firstRequestCounter++;
                         break;
                     }
                 }
+
+                delete[] buffer;
             }
         }
     }

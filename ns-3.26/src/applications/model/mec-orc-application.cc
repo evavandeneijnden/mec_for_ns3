@@ -268,6 +268,7 @@ namespace ns3 {
         std::memset(val, 0, size + 1);
         std::memcpy(val, result.c_str(), size + 1);
 
+
         return val;
     }
 
@@ -303,16 +304,18 @@ namespace ns3 {
         }
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
-        std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[1-9][0-9]+/");
+        std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[1-9][0-9]*/");
         std::smatch match;
         NS_ASSERT(std::regex_search(fillString, match, re));
 
         uint8_t *buffer = GetFilledString(fillString, m_packetSize);
 
+
         //Create packet
         Ptr<Packet> p = Create<Packet> (buffer, m_packetSize);
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
+        free(buffer);
         m_txTrace(p);
 
         m_socket->SendTo(p, 0, InetSocketAddress(ueAddress.GetIpv4(), 1000));
@@ -350,6 +353,7 @@ namespace ns3 {
         Ptr <Packet> p = Create<Packet>(buffer, m_packetSize);
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
+        free(buffer);
         m_txTrace(p);
 
         m_socket->SendTo(p, 0, currentMecAddress);
@@ -580,6 +584,8 @@ namespace ns3 {
                         NS_LOG_ERROR("Non-existent message type received");
                         StopApplication();
                 }
+
+                delete[] buffer;
             }
         }
     }

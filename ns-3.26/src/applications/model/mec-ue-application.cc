@@ -201,10 +201,10 @@ namespace ns3 {
         }
 
 
-        outfile << "Sanity check: " << std::to_string(serviceRequestCounter) << "/" << std::to_string(serviceResponseCounter) <<
-                "/" << std::to_string(pingRequestCounter) << "/" << std::to_string(pingResponseCounter) << "/" <<
-                std::to_string(handoverCommandCounter) << "/" << std::to_string(firstRequestCounter) << "/" << std::to_string(sendPositionCounter) <<
-                "/" << std::to_string(sendMeasurementReportCounter) << std::endl;
+//        outfile << "Sanity check: " << std::to_string(serviceRequestCounter) << "/" << std::to_string(serviceResponseCounter) <<
+//                "/" << std::to_string(pingRequestCounter) << "/" << std::to_string(pingResponseCounter) << "/" <<
+//                std::to_string(handoverCommandCounter) << "/" << std::to_string(firstRequestCounter) << "/" << std::to_string(sendPositionCounter) <<
+//                "/" << std::to_string(sendMeasurementReportCounter) << std::endl;
         outfile.close();
 
         Application::DoDispose ();
@@ -393,15 +393,14 @@ namespace ns3 {
 
         //Create packet
         Ptr<Packet> p = Create<Packet> (buffer, m_size);
+        free(buffer);
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
         m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
 
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
-//        sendTimes.push_back(Simulator::Now());
         openServiceRequests[packetIdCounter] = Simulator::Now();
-//        outfile << Simulator::Now().GetSeconds() << " - serviceRequest sent from " << m_thisIpAddress << " with ID " << firstRequestCounter << std::endl;
 
         firstRequestCounter ++;
     }
@@ -423,11 +422,9 @@ namespace ns3 {
             NS_ASSERT(Simulator::Now() >= m_noSendUntil);
             if (m_requestBlocked){
                 //UE has tried to send during no-send period
-//                sendTimes.push_back(requestBlockedTime);
                 openServiceRequests[packetIdCounter] = requestBlockedTime;
             }
             else {
-//                sendTimes.push_back(Simulator::Now());
                 openServiceRequests[packetIdCounter] = Simulator::Now();
             }
             //Create packet payload
@@ -441,13 +438,12 @@ namespace ns3 {
 
             //Create packet
             Ptr<Packet> p = Create<Packet> (buffer, m_size);
+            free(buffer);
             // call to the trace sinks before the packet is actually sent,
             // so that tags added to the packet can be sent as well
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_mecIp, m_mecPort));
-
             m_sendServiceEvent = Simulator::Schedule (m_serviceInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendServiceRequest, this);
-//            outfile <<  Simulator::Now().GetSeconds() << " - serviceRequest sent from " << m_thisIpAddress << " with ID " << packetIdCounter << std::endl;
 
             m_requestBlocked = false;
             serviceRequestCounter++;
@@ -479,6 +475,7 @@ namespace ns3 {
 
             //Create packet
             Ptr<Packet> p = Create<Packet> (buffer, m_size);
+            free(buffer);
             m_txTrace (p);
             m_socket->SendTo(p, 0, InetSocketAddress(m_orcIp, m_orcPort));
 
@@ -499,22 +496,21 @@ namespace ns3 {
     MecUeApplication::SendPing (void)
     {
         NS_LOG_FUNCTION (this);
-        m_pingSent.clear();
+//        m_pingSent.clear();
         int mecCounter = 0;
         std::list<int> batchIds;
-        for (InetSocketAddress mec: m_allServers){
-            if (Simulator::Now() < m_noSendUntil){
-//                m_requestSent = Simulator::Now();
-//                m_requestBlocked = true;
-                m_sendPingEvent = Simulator::Schedule(m_noSendUntil, &MecUeApplication::SendPing, this);
-            }
-            else {
-                NS_ASSERT(Simulator::Now() > m_noSendUntil);
+
+        if (Simulator::Now() < m_noSendUntil){
+            m_requestSent = Simulator::Now();
+            m_requestBlocked = true;
+            m_sendPingEvent = Simulator::Schedule(m_noSendUntil, &MecUeApplication::SendPing, this);
+        }
+        else {
+            NS_ASSERT(Simulator::Now() > m_noSendUntil);
+            for (InetSocketAddress mec: m_allServers) {
                 //Create packet payload
                 std::string fillString = "2/";
                 fillString.append(std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/");
-//                outfile << "packetID: " << packetIdCounter << std::endl;
-                packetIdCounter++;
                 std::regex re("2/[0-9]+/[0-9]+/");
                 std::smatch match;
                 NS_ASSERT(std::regex_search(fillString, match, re));
@@ -522,21 +518,47 @@ namespace ns3 {
 
                 //Create packet
                 Ptr <Packet> p = Create<Packet>(buffer, m_size);
+                free(buffer);
                 // call to the trace sinks before the packet is actually sent,
                 // so that tags added to the packet can be sent as well
                 m_txTrace(p);
 
                 //Determine correct server socket and send
-                Simulator::Schedule(MicroSeconds(10*mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
-//                outfile << Simulator::Now().GetSeconds() << " - pingRequest sent from " << m_thisIpAddress << " with ID " << packetIdCounter << std::endl;
-                pingSendTimes[packetIdCounter] = Simulator::Now() + MicroSeconds(10*mecCounter);
+                Simulator::Schedule(MicroSeconds(10 * mecCounter), &MecUeApplication::SendIndividualPing, this, p, mec);
+                pingSendTimes[packetIdCounter] = Simulator::Now() + MicroSeconds(10 * mecCounter);
                 batchIds.push_back(packetIdCounter);
+                packetIdCounter++;
             }
-            mecCounter++;
+            openPingRequests.push_back(std::make_pair(batchIds, std::map<Ipv4Address,int64_t>()));
+            m_sendPingEvent = Simulator::Schedule(m_pingInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendPing, this);
+            m_handleTimeoutEvent = Simulator::Schedule(m_timeoutInterval, &MecUeApplication::HandlePingTimeout, this, batchIds);
+            requestCounter ++;
         }
-        openPingRequests.push_back(std::make_pair(batchIds,std::map<Ipv4Address,int64_t>()));
-        m_sendPingEvent = Simulator::Schedule(m_pingInterval + MilliSeconds(randomness->GetValue()), &MecUeApplication::SendPing, this);
-        requestCounter ++;
+    }
+
+    void
+    MecUeApplication::HandlePingTimeout(std::list<int> batchIds){
+        std::map<Ipv4Address, int64_t> measurementReport;
+        std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>>::iterator mapIt;
+        for(mapIt = openPingRequests.begin(); mapIt != openPingRequests.end(); mapIt++){
+            if(mapIt->first == batchIds){
+                measurementReport = mapIt->second;
+
+                if(measurementReport.size() < m_allServers.size()){
+                    std::vector<InetSocketAddress>::iterator it;
+                    for(it = m_allServers.begin(); it != m_allServers.end(); it++) {
+                        Ipv4Address serverAddress = it->GetIpv4();
+                        std::map<Ipv4Address, int64_t>::iterator it2 = measurementReport.find(serverAddress);
+                        if(it2 == measurementReport.end()){
+                            //No entry for this server, add one
+                            measurementReport[serverAddress] = m_timeoutInterval.GetMilliSeconds();
+                        }
+                    }
+                    Simulator::Schedule(MilliSeconds(randomness->GetValue()), &MecUeApplication::SendMeasurementReport, this, measurementReport);
+                }
+                break;
+            }
+        }
     }
 
     void
@@ -572,6 +594,7 @@ namespace ns3 {
         uint8_t *buffer = GetFilledString(payload, m_size);
         //Create packet
         Ptr<Packet> p = Create<Packet> (buffer, m_size);
+        free(buffer);
         // call to the trace sinks before the packet is actually sent,
         // so that tags added to the packet can be sent as well
         m_txTrace (p);
@@ -619,16 +642,14 @@ namespace ns3 {
                         int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
                         openServiceRequests.erase(packetId);
 
-//                        outfile << Simulator::Now().GetSeconds() << " - serviceRequest received for " << m_thisIpAddress << " with ID " << packetId << std::endl;
-
-                        if (Simulator::Now() >= 300.0){
+//                        if (Simulator::Now().GetSeconds() >= 300.0){
                             std::tuple<int,int,double> runningMean = delays[int(Simulator::Now().GetSeconds())];
                             int newTotalDelay = std::get<0>(runningMean) + delay;
                             int newCount = std::get<1>(runningMean) + 1;
                             int newMean = double(newTotalDelay)/double(newCount);
                             std::tuple<int,int,double> newEntry = std::make_tuple(newTotalDelay, newCount, newMean);
                             delays[int(Simulator::Now().GetSeconds())] = newEntry;
-                        }
+//                        }
 
                         serviceResponseCounter++;
                         break;
@@ -638,16 +659,18 @@ namespace ns3 {
 
                         //On receive, add <address, time> entry to measurement report that corresponds with the packetId
                         int packetId = std::stoi(args[2]);
-//                        outfile << Simulator::Now().GetSeconds() << " - pingRequest received from " << inet_from.GetIpv4() << " with ID " << packetId << std::endl;
                         std::vector<std::pair<std::list<int>, std::map<Ipv4Address, int64_t>>>::iterator ping_it;
                         for(ping_it = openPingRequests.begin(); ping_it != openPingRequests.end(); ping_it++){
                             std::list<int> batchIds = ping_it->first;
+                            for (std::list<int>::iterator i = batchIds.begin(); i != batchIds.end(); i++){
+                            }
                             std::map<Ipv4Address, int64_t> measurementReport = ping_it->second;
 
-                            if(std::find(batchIds.begin(), batchIds.end(), packetId) != batchIds.end()){
+                            if(std::count(batchIds.begin(), batchIds.end(), packetId)){
                                 //packetId is in this list
                                 int64_t delay = (Simulator::Now() - pingSendTimes[packetId]).GetMilliSeconds();
                                 measurementReport[from_ipv4] = delay;
+                                std::replace(openPingRequests.begin(), openPingRequests.end(), *ping_it, std::make_pair(ping_it->first, measurementReport));
 
                                 //If measurementreport is now complete, send it to ORC.
                                 if(measurementReport.size() == m_allServers.size()){
@@ -655,7 +678,7 @@ namespace ns3 {
                                     Simulator::Schedule(MilliSeconds(randomness->GetValue()), &MecUeApplication::SendMeasurementReport, this, measurementReport);
 
                                     //Remove this entry and any older ones that are now outdated from openPingRequests.
-                                    openPingRequests.erase(openPingRequests.begin(), std::find(openPingRequests.begin(), openPingRequests.end(), std::make_pair(batchIds, measurementReport)));
+                                    openPingRequests.erase(openPingRequests.begin(), std::find(openPingRequests.begin(), openPingRequests.end(), *ping_it));
                                     openPingRequests.erase(openPingRequests.begin());
 
                                     //Remove pingSendTimes entries
@@ -699,6 +722,8 @@ namespace ns3 {
                         break;
                     }
                 }
+
+                delete[] buffer;
             }
         }
     }
