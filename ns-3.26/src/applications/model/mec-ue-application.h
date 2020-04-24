@@ -100,7 +100,7 @@ namespace ns3 {
         uint16_t GetCellId(void);
         bool CheckEnb(Ptr<LteEnbNetDevice> enb);
 
-        void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec);
+        void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec, int packetId);
         void SendPosition(void);
         void PrintRoutes(void);
         void HandlePingTimeout(std::list<int> batchIds);
@@ -136,14 +136,11 @@ namespace ns3 {
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;
 
-
-        //Added
         Time m_noSendUntil;
         Time m_requestSent;
         Time requestBlockedTime;
         std::vector<InetSocketAddress> m_allServers;
         std::map<InetSocketAddress, Ptr<Socket>> serverSocketMap;
-        Ptr<Socket> currentMecSocket;
 
         Ptr<LteEnbNetDevice> m_enb0;
         Ptr<LteEnbNetDevice> m_enb1;
