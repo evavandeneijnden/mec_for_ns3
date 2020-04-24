@@ -139,7 +139,6 @@ namespace ns3 {
 
         std::vector<std::pair<Ptr<Packet>, Time>> processingQueue;
         Ptr<ExponentialRandomVariable> processingTimer;
-        int queueCounter = 0;
         std::fstream outfile;
     };
 

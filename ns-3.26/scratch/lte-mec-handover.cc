@@ -560,7 +560,7 @@ int
 main (int argc, char *argv[]) {
 
     //Set load variables
-    lambda = (double(1.0/PING_INTERVAL) + double(1.0/SERVICE_INTERVAL)) * (double)numberOfUes;
+    lambda = ((double(1.0/PING_INTERVAL) * numberOfMecs) + double(1.0/SERVICE_INTERVAL)) * (double)numberOfUes;
     total_mec_rate = lambda/SERVER_LOAD; // in jobs/ms
     mec_rates.push_back((double)load_distribution[0]*total_mec_rate);
     mec_rates.push_back((double)load_distribution[1]*total_mec_rate);
