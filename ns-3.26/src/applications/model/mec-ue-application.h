@@ -103,6 +103,7 @@ namespace ns3 {
         void SendIndividualPing(Ptr<Packet> p, InetSocketAddress mec, int packetId);
         void SendPosition(void);
         void PrintRoutes(void);
+        void LogServer(void);
         void HandlePingTimeout(std::list<int> batchIds);
 
 
@@ -120,6 +121,7 @@ namespace ns3 {
         EventId m_sendServiceEvent;
         EventId m_sendPositionEvent;
         EventId m_handleTimeoutEvent;
+        EventId logServerEvent;
         uint8_t *m_data_request;
         uint8_t *m_data_ping;
         uint8_t *m_data_report;

@@ -304,7 +304,7 @@ namespace ns3 {
         }
 
         std::string fillString = "6/" + addrString + "/" + portString + "/" + std::to_string(handoverTime) + "/";
-        std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[1-9][0-9]*/");
+        std::regex re("6/([0-9]+\\.[0-9+]\\.[0-9]+\\.[0-9]+)/[1-9][0-9]*/[0-9]+/");
         std::smatch match;
         NS_ASSERT(std::regex_search(fillString, match, re));
 

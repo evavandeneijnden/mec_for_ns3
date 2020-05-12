@@ -68,9 +68,10 @@ namespace ns3 {
 
         void HandleRead (Ptr<Socket> socket);
 
-        void SendResponseTimeUpdate(Time responseTime);
+        void SendResponseTimeUpdate();
         void SendUeTransfer(InetSocketAddress ueAddress, InetSocketAddress newMecAddress);
         void SendEcho (Ipv4Address echoAddress, Ptr<Packet> packet, std::string packetId);
+        void LogResponseTime(void);
         Time HandleQueue (Ptr<Packet> newPacket);
 //        void SendRequestEcho(void);
 
@@ -90,6 +91,8 @@ namespace ns3 {
         EventId m_sendEvent; //!< Event to send the next packet
         EventId m_transferEvent;
         EventId m_echoEvent;
+        EventId logResponseTimeEvent;
+        EventId sendResponseTimeUpdateEvent;
 
         /// Callbacks for tracing the packet Tx events
         TracedCallback<Ptr<const Packet> > m_txTrace;

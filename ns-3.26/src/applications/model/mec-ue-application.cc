@@ -184,7 +184,6 @@ namespace ns3 {
     MecUeApplication::DoDispose (void)
     {
         NS_LOG_FUNCTION (this);
-
         std::map<int, std::tuple<int,int,double>>::iterator delayIt;
         for (delayIt = delays.begin(); delayIt != delays.end(); delayIt++){
             outfile << "delay/" << m_thisIpAddress << "/" << delayIt->first << "/" << std::get<2>(delayIt->second) << std::endl;
@@ -257,6 +256,7 @@ namespace ns3 {
         NS_ASSERT(m_socket);
 
         m_sendServiceEvent = Simulator::Schedule (Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
+        logServerEvent = Simulator::Schedule(Seconds(1), &MecUeApplication::LogServer, this);
         if (metric == 0){
             m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPing, this);
         }
@@ -306,6 +306,12 @@ namespace ns3 {
         Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper>(&std::cout);
         Ipv4GlobalRoutingHelper ipv4RoutingHelper;
         ipv4RoutingHelper.PrintRoutingTableAt(Seconds(0), router, routingStream);
+    }
+
+    void
+    MecUeApplication::LogServer(void) {
+        outfile << "MEC/" << m_thisIpAddress << "/" << Simulator::Now().GetSeconds() << "/" << m_mecIp << std::endl;
+        logServerEvent = Simulator::Schedule(Seconds(1), &MecUeApplication::LogServer, this);
     }
 
     uint8_t*
@@ -375,7 +381,7 @@ namespace ns3 {
         NS_ASSERT(result <= 3 && result > 0);
         if (result != myCellId){
             NS_LOG_DEBUG("Node " << m_thisNode->GetId() << " switching from cell id " << myCellId << " to cell id " << result);
-            outfile << Simulator::Now().GetSeconds() << "/", m_thisIpAddress << "/Radio handover" << std::endl;
+            outfile << Simulator::Now().GetSeconds() << "/" << m_thisIpAddress << "/ Radio handover" << std::endl;
             myCellId = result;
         }
         return result;
@@ -405,6 +411,7 @@ namespace ns3 {
         m_sendServiceEvent = Simulator::Schedule (m_serviceInterval, &MecUeApplication::SendServiceRequest, this);
 
         openServiceRequests[packetIdCounter] = Simulator::Now();
+//        outfile << Simulator::Now().GetSeconds() << " - " << m_thisIpAddress << ", sent service request (1) with ID " << packetIdCounter << std::endl;
         packetIdCounter++;
 
         firstRequestCounter ++;
@@ -428,9 +435,11 @@ namespace ns3 {
             if (m_requestBlocked){
                 //UE has tried to send during no-send period
                 openServiceRequests[packetIdCounter] = requestBlockedTime;
+//                outfile << requestBlockedTime.GetSeconds() << " - " << m_thisIpAddress << ", sent service request (2) with ID " << packetIdCounter << std::endl;
             }
             else {
                 openServiceRequests[packetIdCounter] = Simulator::Now();
+//                outfile << Simulator::Now().GetSeconds() << " - " << m_thisIpAddress << ", sent service request (3) with ID " << packetIdCounter << std::endl;
             }
             //Create packet payload
             std::string fillString = "1/" + std::to_string(GetCellId()) + "/" + std::to_string(packetIdCounter) + "/";
@@ -465,7 +474,7 @@ namespace ns3 {
             m_sendPositionEvent = Simulator::Schedule(m_noSendUntil, &MecUeApplication::SendPosition, this);
         }
         else {
-            NS_ASSERT(Simulator::Now() > m_noSendUntil);
+            NS_ASSERT(Simulator::Now() >= m_noSendUntil);
             Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
             Vector myPosition = myMobility->GetPosition();
 
@@ -516,7 +525,7 @@ namespace ns3 {
 //            outfile << Simulator::Now().GetSeconds() << " - " << m_thisIpAddress << ", sendPing blocked; no-send period for another " << (m_noSendUntil - Simulator::Now()).GetMilliSeconds() << " ms." << std::endl;
         }
         else {
-            NS_ASSERT(Simulator::Now() > m_noSendUntil);
+            NS_ASSERT(Simulator::Now() >= m_noSendUntil);
             for (InetSocketAddress mec: m_allServers) {
                 //Create packet payload
                 std::string fillString = "2/";
@@ -563,6 +572,7 @@ namespace ns3 {
                         std::map<Ipv4Address, int64_t>::iterator it2 = measurementReport.find(serverAddress);
                         if(it2 == measurementReport.end()){
                             //No entry for this server, add one
+//                            outfile << Simulator::Now() << " - " << m_thisIpAddress << ", ping timeout" << std::endl;
                             measurementReport[serverAddress] = m_timeoutInterval.GetMilliSeconds();
                         }
                     }
@@ -653,6 +663,7 @@ namespace ns3 {
                         //This is a service response from my MEC
                         int packetId = std::stoi(args[2]);
                         int64_t delay = (Simulator::Now() - openServiceRequests[packetId]).GetMilliSeconds();
+//                        outfile << Simulator::Now().GetSeconds() << " - " << m_thisIpAddress << ", Service response with ID " << packetId << ", packet send time: " << openServiceRequests[packetId].GetSeconds() << ", measured delay: " << delay << " ms. " << std::endl;
                         openServiceRequests.erase(packetId);
 
                         if (Simulator::Now().GetSeconds() >= 300.0){
@@ -660,6 +671,7 @@ namespace ns3 {
                             int newTotalDelay = std::get<0>(runningMean) + delay;
                             int newCount = std::get<1>(runningMean) + 1;
                             int newMean = double(newTotalDelay)/double(newCount);
+//                            outfile << Simulator::Now().GetSeconds() << " - " << m_thisIpAddress << ", Mean calculations. newTotalDelay: " << newTotalDelay << ", newCount: " << newCount << ", newMean: " << newMean << std::endl;
                             std::tuple<int,int,double> newEntry = std::make_tuple(newTotalDelay, newCount, newMean);
                             delays[int(Simulator::Now().GetSeconds())] = newEntry;
                         }
@@ -719,10 +731,14 @@ namespace ns3 {
                         //Update MEC address
                         //Log handover, time, my address, old MEC, new MEC and no-send period duration in ms
 
-                        int numberOfHandovers = handovers[int(Simulator::Now().GetSeconds())];
-                        handovers[int(Simulator::Now().GetSeconds())] = numberOfHandovers + 1;
-                        Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
-                        handoverPositions.push_back(myMobility->GetPosition());
+                        if (Simulator::Now().GetSeconds() >= 300.0) {
+                            int numberOfHandovers = handovers[int(Simulator::Now().GetSeconds())];
+                            handovers[int(Simulator::Now().GetSeconds())] = numberOfHandovers + 1;
+                            Ptr<MobilityModel> myMobility = m_thisNode->GetObject<MobilityModel>();
+                            handoverPositions.push_back(myMobility->GetPosition());
+//                            outfile << Simulator::Now().GetSeconds() << " - " << m_thisIpAddress << ", handovers +1" << std::endl;
+                        }
+
 
                         m_mecIp = newAddress;
                         m_mecPort = newPort;

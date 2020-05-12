@@ -53,7 +53,7 @@ double mec_distance = 4000.0;
 unsigned int numberOfRemoteHosts = numberOfMecs + 1; //One extra for the orchestrator
 
 //DO NOT change between experiments
-const double simTime = 1820; //in seconds (1820)
+const double simTime = 5; //in seconds (1820)
 const int numberOfUes = 100;
 
 const uint32_t ORC_PACKET_SIZE = 256; //in bytes
@@ -69,14 +69,14 @@ double SERVER_LOAD = 0.5; //between 0 and 1
 std::vector<double> load_distribution{0.4,0.5,0.1}; //the percentage of the total capacity each server will have
 
 double HYSTERESIS = 0.15; //Value between 0 and 1 for setting the percentage another candidate's performance must be better than the current
-int DELAY_THRESHOLD = 15; //If delay is higher than threshold, switch. In ms.
+int DELAY_THRESHOLD = 100; //If delay is higher than threshold, switch. In ms.
 int DISTANCE_THRESHOLD = 0.5*mec_distance; //If distance is more than half the distance between MECs, switch. In meters.
 
 //Handover strategy settings. Change between experiments
-int METRIC = 0; //Valid options are 0 for delay, 1 for distance
+int METRIC = 1; //Valid options are 0 for delay, 1 for distance
 int TRIGGER = 0; //Valid options are 0 for optimal, 1 for hysteresis, 2 for threshold and 3 for threshold AND hysteresis
 
-int runNumber = 1; //Determines the settings for the random number generator & the mobility file to be used
+int runNumber = 8; //Determines the settings for the random number generator & the mobility file to be used
 
 
 
