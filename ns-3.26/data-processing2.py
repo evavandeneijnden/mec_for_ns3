@@ -4,7 +4,7 @@ import scipy.stats
 
 
 def process_run(run_number):
-    print("Process run")
+    print("Process run " + str(run_number))
     ####################################
     # Data processing for a single run #
     ####################################
@@ -16,9 +16,8 @@ def process_run(run_number):
     file10ue = open("results10/" + str(run_number) + "UE.txt", "r")
     file11ue = open("results11/" + str(run_number) + "UE.txt", "r")
     file12ue = open("results12/" + str(run_number) + "UE.txt", "r")
-    # file13ue = open("results13/" + str(run_number) + "UE.txt", "r")
-    ue_files = [file00ue, file01ue, file02ue, file03ue, file10ue, file11ue, file12ue]
-    # , file13ue]
+    file13ue = open("results13/" + str(run_number) + "UE.txt", "r")
+    ue_files = [file00ue, file01ue, file02ue, file03ue, file10ue, file11ue, file12ue, file13ue]
 
     # MEC data files
     file00mec = open("results00/" + str(run_number) + "MEC.txt", "r")
@@ -28,9 +27,8 @@ def process_run(run_number):
     file10mec = open("results10/" + str(run_number) + "MEC.txt", "r")
     file11mec = open("results11/" + str(run_number) + "MEC.txt", "r")
     file12mec = open("results12/" + str(run_number) + "MEC.txt", "r")
-    # file13mec = open("results13/" + str(run_number) + "MEC.txt", "r")
-    mec_files = [file00mec, file01mec, file02mec, file03mec, file10mec, file11mec, file12mec]
-    # , file13mec]
+    file13mec = open("results13/" + str(run_number) + "MEC.txt", "r")
+    mec_files = [file00mec, file01mec, file02mec, file03mec, file10mec, file11mec, file12mec, file13mec]
 
     # RTT dictionaries (timeslot, [totalDelays, numberOfDelays, mean])
     rtt00 = {}
@@ -40,9 +38,8 @@ def process_run(run_number):
     rtt10 = {}
     rtt11 = {}
     rtt12 = {}
-    # rtt13 = {}
-    rtt_dictionaries = [rtt00, rtt01, rtt02, rtt03, rtt10, rtt11, rtt12]
-    # , rtt13]
+    rtt13 = {}
+    rtt_dictionaries = [rtt00, rtt01, rtt02, rtt03, rtt10, rtt11, rtt12, rtt13]
 
     # Handover dictionaries (time_slot, [totalHandovers, count, mean])
     handover00 = {}
@@ -52,9 +49,9 @@ def process_run(run_number):
     handover10 = {}
     handover11 = {}
     handover12 = {}
-    # handover13 = {}
-    handover_dictionaries = [handover00, handover01, handover02, handover03, handover10, handover11, handover12]
-    # , handover13]
+    handover13 = {}
+    handover_dictionaries = [handover00, handover01, handover02, handover03, handover10, handover11, handover12,
+                             handover13]
 
     # Clients per MEC dictionaries (time_slot, [#clientsmec1, #clientsmec2, #clientsmec3])
     clients00 = {}
@@ -64,9 +61,8 @@ def process_run(run_number):
     clients10 = {}
     clients11 = {}
     clients12 = {}
-    # clients13 = {}
-    client_dictionaries = [clients00, clients01, clients02, clients03, clients10, clients11, clients12]
-    # , clients13]
+    clients13 = {}
+    client_dictionaries = [clients00, clients01, clients02, clients03, clients10, clients11, clients12, clients13]
 
     # Response time per MEC dictionaries (time_slot, [response_mec1, response_mec2, response_mec3])
     response00 = {}
@@ -76,9 +72,9 @@ def process_run(run_number):
     response10 = {}
     response11 = {}
     response12 = {}
-    # response13 = {}
-    response_dictionaries = [response00, response01, response02, response03, response10, response11, response12]
-    # , response13]
+    response13 = {}
+    response_dictionaries = [response00, response01, response02, response03, response10, response11, response12,
+                             response13]
 
     mean_rtt_per_strategy = {}  # filename, mean_rtt
     handover_frequency_per_strategy = {}  # filename, mean_handover_freq
@@ -90,13 +86,11 @@ def process_run(run_number):
         experiment_index = ue_files.index(file)
         rtt_stats = [0, 0, 0]
         client_count = {}
-        # global_handovers = 0
         for line in file:
                 args = line.split('/')
                 logtype = args[0]
 
                 if logtype == "delay":
-                    # source = args[1]
                     time_slot = int(args[2])
 
                     my_mean_rtt = int(args[3])
@@ -120,18 +114,15 @@ def process_run(run_number):
                         rtt_stats = [my_mean_rtt, 1, my_mean_rtt]
 
                 elif logtype == "handovers":
-                    # source = args[1]
                     time_slot = int(args[2])
 
                     my_handover_dictionary = handover_dictionaries[experiment_index]
                     my_handovers = int(args[3])
-                    # global_handovers = global_handovers + my_handovers
                     if time_slot in my_handover_dictionary:
                         my_handover_dictionary[time_slot] = my_handover_dictionary[time_slot] + my_handovers
                     else:
                         my_handover_dictionary[time_slot] = 1
                 elif logtype == "MEC":
-                    # source = args[1]
                     time_slot = int(args[2])
                     server = args[3]
 
@@ -247,7 +238,6 @@ def process_run(run_number):
         file_string = file_string[:-1] + "\n"
         file_string = file_string.replace('.', ',')
         handover_output_file.write(file_string)
-        print(file_string)
     handover_output_file.close()
 
     # Write data file for clients per MEC graph
@@ -313,8 +303,8 @@ def process_run(run_number):
             rtt_dict["13"] = mean_rtt_per_strategy[name]
 
     rtt_string = "rtt/" + str(rtt_dict["00"]) + "/" + str(rtt_dict["01"]) + "/" + str(rtt_dict["02"]) + "/" + \
-                 str(rtt_dict["03"]) + "/" + str(rtt_dict["10"]) + "/" + str(rtt_dict["11"]) + "/" + str(rtt_dict["12"]) + "\n"
-    # + "/" + str(rtt_dict["13"])
+                 str(rtt_dict["03"]) + "/" + str(rtt_dict["10"]) + "/" + str(rtt_dict["11"]) + "/" + \
+                 str(rtt_dict["12"]) + "/" + str(rtt_dict["13"]) + "\n"
     summary_output_file.write(rtt_string)
 
     handover_dict = {}
@@ -337,9 +327,10 @@ def process_run(run_number):
             handover_dict["13"] = handover_frequency_per_strategy[name]
 
     handover_string = "handover_frequency/" + str(handover_dict["00"]) + "/" + str(handover_dict["01"]) + "/" + \
-                      str(handover_dict["02"]) + "/" + str(handover_dict["03"]) + "/" + str(handover_dict["10"]) + "/" + \
-                      str(handover_dict["11"]) + "/" + str(handover_dict["12"]) + "\n"
-    # + "/" + str(handover_dict["13"])
+                      str(handover_dict["02"]) + "/" + str(handover_dict["03"]) + "/" + str(handover_dict["10"]) + \
+                      "/" + str(handover_dict["11"]) + "/" + str(handover_dict["12"]) + "/" + \
+                      str(handover_dict["13"]) + "\n"
+
     summary_output_file.write(handover_string)
 
     # print("Number of handovers per strategy")
@@ -366,8 +357,8 @@ def process_run(run_number):
 
     count_string = "handover_count/" + str(count_dict["00"]) + "/" + str(count_dict["01"]) + "/" + \
                    str(count_dict["02"]) + "/" + str(count_dict["03"]) + "/" + str(count_dict["10"]) + \
-                   "/" + str(count_dict["11"]) + "/" + str(count_dict["12"]) + "\n"
-    # + "/" + str(count_dict["13"])
+                   "/" + str(count_dict["11"]) + "/" + str(count_dict["12"]) + "/" + str(count_dict["13"]) + "\n"
+
     summary_output_file.write(count_string)
 
 
