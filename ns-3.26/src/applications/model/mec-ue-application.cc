@@ -256,12 +256,12 @@ namespace ns3 {
         NS_ASSERT(m_socket);
 
         m_sendServiceEvent = Simulator::Schedule (Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_serviceOffset, &MecUeApplication::SendFirstRequest, this);
-        logServerEvent = Simulator::Schedule(Seconds(1), &MecUeApplication::LogServer, this);
+        logServerEvent = Simulator::Schedule(Seconds(295), &MecUeApplication::LogServer, this);
         if (metric == 0){
-            m_sendPingEvent = Simulator::Schedule((Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPing, this);
+            m_sendPingEvent = Simulator::Schedule((Seconds(295) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPing, this);
         }
         else if (metric == 1){
-            m_sendPositionEvent = Simulator::Schedule((Seconds(0.5) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPosition, this);
+            m_sendPositionEvent = Simulator::Schedule((Seconds(295) + MilliSeconds(randomness->GetValue()) + m_pingOffset), &MecUeApplication::SendPosition, this);
         }
         else {
             NS_LOG_ERROR("An invalid metric parameter was passed to the UE");

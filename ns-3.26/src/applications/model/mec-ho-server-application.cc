@@ -275,10 +275,10 @@ NS_OBJECT_ENSURE_REGISTERED (MecHoServerApplication);
 
         m_expectedResponseTime = 0;
         if (metric == 0){
-            sendResponseTimeUpdateEvent = Simulator::Schedule(Seconds(0.5), &MecHoServerApplication::SendResponseTimeUpdate, this);
+            sendResponseTimeUpdateEvent = Simulator::Schedule(Seconds(295), &MecHoServerApplication::SendResponseTimeUpdate, this);
         }
         else if (metric == 1){
-            logResponseTimeEvent = Simulator::Schedule(Seconds(0.5), &MecHoServerApplication::LogResponseTime, this);
+            logResponseTimeEvent = Simulator::Schedule(Seconds(295), &MecHoServerApplication::LogResponseTime, this);
         }
 
     }
