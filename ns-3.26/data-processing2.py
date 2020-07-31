@@ -285,21 +285,22 @@ def process_run(run_number):
 
     rtt_dict = {}
     for name in mean_rtt_per_strategy:
-        if "00" in name:
+        name_args = name.split('/')
+        if "00" in name_args[0]:
             rtt_dict["00"] = mean_rtt_per_strategy[name]
-        elif "01" in name:
+        elif "01" in name_args[0]:
             rtt_dict["01"] = mean_rtt_per_strategy[name]
-        elif "02" in name:
+        elif "02" in name_args[0]:
             rtt_dict["02"] = mean_rtt_per_strategy[name]
-        elif "03" in name:
+        elif "03" in name_args[0]:
             rtt_dict["03"] = mean_rtt_per_strategy[name]
-        elif "10" in name:
+        elif "10" in name_args[0]:
             rtt_dict["10"] = mean_rtt_per_strategy[name]
-        elif "11" in name:
+        elif "11" in name_args[0]:
             rtt_dict["11"] = mean_rtt_per_strategy[name]
-        elif "12" in name:
+        elif "12" in name_args[0]:
             rtt_dict["12"] = mean_rtt_per_strategy[name]
-        elif "13" in name:
+        elif "13" in name_args[0]:
             rtt_dict["13"] = mean_rtt_per_strategy[name]
 
     rtt_string = "rtt/" + str(rtt_dict["00"]) + "/" + str(rtt_dict["01"]) + "/" + str(rtt_dict["02"]) + "/" + \
@@ -309,21 +310,22 @@ def process_run(run_number):
 
     handover_dict = {}
     for name in handover_frequency_per_strategy:
-        if "00" in name:
+        name_args = name.split('/')
+        if "00" in name_args[0]:
             handover_dict["00"] = handover_frequency_per_strategy[name]
-        elif "01" in name:
+        elif "01" in name_args[0]:
             handover_dict["01"] = handover_frequency_per_strategy[name]
-        elif "02" in name:
+        elif "02" in name_args[0]:
             handover_dict["02"] = handover_frequency_per_strategy[name]
-        elif "03" in name:
+        elif "03" in name_args[0]:
             handover_dict["03"] = handover_frequency_per_strategy[name]
-        elif "10" in name:
+        elif "10" in name_args[0]:
             handover_dict["10"] = handover_frequency_per_strategy[name]
-        elif "11" in name:
+        elif "11" in name_args[0]:
             handover_dict["11"] = handover_frequency_per_strategy[name]
-        elif "12" in name:
+        elif "12" in name_args[0]:
             handover_dict["12"] = handover_frequency_per_strategy[name]
-        elif "13" in name:
+        elif "13" in name_args[0]:
             handover_dict["13"] = handover_frequency_per_strategy[name]
 
     handover_string = "handover_frequency/" + str(handover_dict["00"]) + "/" + str(handover_dict["01"]) + "/" + \
@@ -338,21 +340,22 @@ def process_run(run_number):
     count_dict = {}
     for name in handover_count_per_strategy:
         # print(name + ": " + str(handover_count_per_strategy[name]) + "\n")
-        if "00" in name:
+        name_args = name.split('/')
+        if "00" in name_args[0]:
             count_dict["00"] = handover_count_per_strategy[name]
-        elif "01" in name:
+        elif "01" in name_args[0]:
             count_dict["01"] = handover_count_per_strategy[name]
-        elif "02" in name:
+        elif "02" in name_args[0]:
             count_dict["02"] = handover_count_per_strategy[name]
-        elif "03" in name:
+        elif "03" in name_args[0]:
             count_dict["03"] = handover_count_per_strategy[name]
-        elif "10" in name:
+        elif "10" in name_args[0]:
             count_dict["10"] = handover_count_per_strategy[name]
-        elif "11" in name:
+        elif "11" in name_args[0]:
             count_dict["11"] = handover_count_per_strategy[name]
-        elif "12" in name:
+        elif "12" in name_args[0]:
             count_dict["12"] = handover_count_per_strategy[name]
-        elif "13" in name:
+        elif "13" in name_args[0]:
             count_dict["13"] = handover_count_per_strategy[name]
 
     count_string = "handover_count/" + str(count_dict["00"]) + "/" + str(count_dict["01"]) + "/" + \

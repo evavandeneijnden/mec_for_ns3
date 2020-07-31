@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import scipy.stats
+import copy
 
 # Script to merge multiple runs of experiments
 
@@ -20,7 +21,7 @@ def calculate_confidence_interval(data, confidence=0.95):
 def merge_summaries():
     print("Merge summaries")
     summary_files = []
-    for run_number in (1, number_of_runs):
+    for run_number in range(1, number_of_runs + 1):
         summary_files.append(open("results/" + str(run_number) + "summary.csv", "r"))
 
     # Read data from file
@@ -72,23 +73,29 @@ def merge_summaries():
     summary_output = open("results/merged_summary.csv", "w")
 
     rtt_string = "rtt/"
-    for strategy in rtt_vars:
-        confidence_interval = calculate_confidence_interval(rtt_vars[strategy])
-        rtt_string = rtt_string + str(confidence_interval[0]) + "/" + str(confidence_interval[1]) + "/"
+    for metric in range(0, 2):
+        for trigger in range(0, 4):
+            strategy = str(metric) + str(trigger)
+            confidence_interval = calculate_confidence_interval(rtt_vars[strategy])
+            rtt_string = rtt_string + str(confidence_interval[0]) + "/" + str(confidence_interval[1]) + "/"
     rtt_string = rtt_string[:-1] + "\n"
     summary_output.write(rtt_string)
 
     frequency_string = "handover_frequency/"
-    for strategy in frequency_vars:
-        confidence_interval = calculate_confidence_interval(frequency_vars[strategy])
-        frequency_string = frequency_string + str(confidence_interval[0]) + "/" + str(confidence_interval[1]) + "/"
+    for metric in range(0, 2):
+        for trigger in range(0, 4):
+            strategy = str(metric) + str(trigger)
+            confidence_interval = calculate_confidence_interval(frequency_vars[strategy])
+            frequency_string = frequency_string + str(confidence_interval[0]) + "/" + str(confidence_interval[1]) + "/"
     frequency_string = frequency_string[:-1] + "\n"
     summary_output.write(frequency_string)
 
     count_string = "frequency_count/"
-    for strategy in count_vars:
-        confidence_interval = calculate_confidence_interval(count_vars[strategy])
-        count_string = count_string + str(confidence_interval[0]) + "/" + str(confidence_interval[1]) + "/"
+    for metric in range(0, 2):
+        for trigger in range(0, 4):
+            strategy = str(metric) + str(trigger)
+            confidence_interval = calculate_confidence_interval(count_vars[strategy])
+            count_string = count_string + str(confidence_interval[0]) + "/" + str(confidence_interval[1]) + "/"
     count_string = count_string[:-1] + "\n"
     summary_output.write(count_string)
 
@@ -100,7 +107,7 @@ def merge_clients():
     print("Merge clients")
 
     client_files = []
-    for run_number in (1, number_of_runs):
+    for run_number in range(1, number_of_runs + 1):
         client_files.append(open("results/" + str(run_number) + "clients.csv", "r"))
 
     # Read data from files
@@ -113,8 +120,8 @@ def merge_clients():
                 entry = str(metric) + str(trigger) + str(server)
                 strategy_dict[entry] = []
 
-    for i in range(300, 1821):
-        client_data[i] = strategy_dict
+    for i in range(300, 1820):
+        client_data[i] = copy.deepcopy(strategy_dict)
 
     for file in client_files:
         for line in file:
@@ -158,9 +165,12 @@ def merge_clients():
         my_dict = client_data[time_slot]
         client_string = str(time_slot) + "/"
 
-        for key in my_dict:
-            mean = float(sum(my_dict[key]))/len(my_dict[key])
-            client_string = client_string + str(mean) + "/"
+        for metric in range(0, 2):
+            for trigger in range(0, 4):
+                for server in range(0,3):
+                    key = str(metric) + str(trigger) + str(server)
+                    mean = float(sum(my_dict[key]))/len(my_dict[key])
+                    client_string = client_string + str(mean) + "/"
 
         client_string = client_string[:-1] + "\n"
         client_output_file.write(client_string)
@@ -173,7 +183,7 @@ def merge_handovers():
     print("Merge handovers")
 
     handover_files = []
-    for run_number in (1, number_of_runs):
+    for run_number in range(1, number_of_runs + 1):
         handover_files.append(open("results/" + str(run_number) + "handovers.csv", "r"))
 
     handover_data = {}  # timeslot, dict(strat_name, [entries])
@@ -184,8 +194,8 @@ def merge_handovers():
             strategy_name = str(metric) + str(trigger)
             strategy_dict[strategy_name] = []
 
-    for i in range(300, 1821):
-        handover_data[i] = strategy_dict
+    for i in range(300, 1820):
+        handover_data[i] = copy.deepcopy(strategy_dict)
 
     for file in handover_files:
         for line in file:
@@ -212,9 +222,11 @@ def merge_handovers():
         my_dict = handover_data[time_slot]
         handover_string = str(time_slot) + "/"
 
-        for strategy in my_dict:
-            mean = float(sum(my_dict[strategy])) / len(my_dict[strategy])
-            handover_string = handover_string + str(mean) + "/"
+        for metric in range(0, 2):
+            for trigger in range(0, 4):
+                strategy = str(metric) + str(trigger)
+                mean = float(sum(my_dict[strategy])) / len(my_dict[strategy])
+                handover_string = handover_string + str(mean) + "/"
 
         handover_string = handover_string[:-1] + "\n"
         handover_output_file.write(handover_string)
@@ -227,7 +239,7 @@ def merge_responsetimes():
     print("Merge responsetimes")
 
     responsetime_files = []
-    for run_number in (1, number_of_runs):
+    for run_number in range(1, number_of_runs + 1):
         responsetime_files.append(open("results/" + str(run_number) + "responsetime.csv", "r"))
 
     # Read data from files
@@ -239,8 +251,8 @@ def merge_responsetimes():
                 entry = str(metric) + str(trigger) + str(server)
                 strategy_dict[entry] = []
 
-    for i in range(300, 1821):
-        responsetime_data[i] = strategy_dict
+    for i in range(300, 1820):
+        responsetime_data[i] = copy.deepcopy(strategy_dict)
 
     for file in responsetime_files:
         for line in file:
@@ -284,9 +296,14 @@ def merge_responsetimes():
         my_dict = responsetime_data[time_slot]
         responsetime_string = str(time_slot) + "/"
 
-        for key in my_dict:
-            mean = float(sum(my_dict[key])) / len(my_dict[key])
-            responsetime_string = responsetime_string + str(mean) + "/"
+        for metric in range(0, 2):
+            for trigger in range(0, 4):
+                for server in range(0, 3):
+                    key = str(metric) + str(trigger) + str(server)
+                    print("Key: " + key)
+                    mean = float(sum(my_dict[key])) / len(my_dict[key])
+                    responsetime_string = responsetime_string + str(mean) + "/"
+        print(responsetime_string)
 
         responsetime_string = responsetime_string[:-1] + "\n"
         responsetime_output_file.write(responsetime_string)
@@ -299,7 +316,7 @@ def merge_rtts():
     print("Merge RTTs")
 
     rtt_files = []
-    for run_number in (1, number_of_runs):
+    for run_number in range(1, number_of_runs + 1):
         rtt_files.append(open("results/" + str(run_number) + "rtt.csv", "r"))
 
     rtt_data = {}  # timeslot, dict(strat_name, [entries])
@@ -310,8 +327,8 @@ def merge_rtts():
             strategy_name = str(metric) + str(trigger)
             strategy_dict[strategy_name] = []
 
-    for i in range(300, 1821):
-        rtt_data[i] = strategy_dict
+    for i in range(300, 1820):
+        rtt_data[i] = copy.deepcopy(strategy_dict)
 
     for file in rtt_files:
         for line in file:
@@ -329,7 +346,6 @@ def merge_rtts():
             my_dict["12"].append(float(args[7]))
             my_dict["13"].append(float(args[8]))
 
-            rtt_data[time_slot] = my_dict
         file.close()
 
         # Write mean data to file
@@ -339,9 +355,11 @@ def merge_rtts():
         my_dict = rtt_data[time_slot]
         rtt_string = str(time_slot) + "/"
 
-        for strategy in my_dict:
-            mean = float(sum(my_dict[strategy])) / len(my_dict[strategy])
-            rtt_string = rtt_string + str(mean) + "/"
+        for metric in range(0, 2):
+            for trigger in range(0, 4):
+                strategy = str(metric) + str(trigger)
+                mean = float(sum(my_dict[strategy])) / len(my_dict[strategy])
+                rtt_string = rtt_string + str(mean) + "/"
 
         rtt_string = rtt_string[:-1] + "\n"
         rtt_output_file.write(rtt_string)
