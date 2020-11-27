@@ -1,19 +1,8 @@
-This is ns-3-allinone.
+Note: this code was adapted from ns-3 for a master's thesis. The code will not be supported. but if you want to use it and have questions, contact me and I'll be happy to help where I can.
 
-If you have downloaded this in tarball release format, this directory
-contains some released ns-3 version, along with 3rd party components
-necessary to support all optional ns-3 features, such as Python
-bindings and the Network Animator.  In this case, just run the
-script build.py; all the components, plus ns-3 itself, will thus be
-built.  This directory also contains the bake build tool, which allows
-access to several additional modules including the Network Simulation
-Cradle, Direct Code Execution environment, and click and openflow 
-extensions for ns-3.
-
-If you have downloaded this from mercurial, the download.py script will
-download bake, netanim, pybindgen, and ns-3-dev.  The usage to use
-basic ns-3 (netanim and ns-3-dev) is to type:
-./download.py
-./build.py
-and cd into ns-3-dev for further work.  Consult the bake documentation
-on how to use bake to access optional ns-3 components.
+A few short tips:
+- Working code is on the branch "simulator"
+- Run the build.py file to configure the software
+- The main scenario can be found here: ns-3.26/scratch/lte-mec-handover.cc. The other files are variations on this file, used to run the experiment with multiple settings in parallel.
+- The application files for the various MEC applications can be found here: ns-3.26/src/applications/model/mec-[insert file name here]
+- For details on the system design, see the chapter "Implementation" of my soon-to-be-published thesis, "Optimal Handover in MEC for an Automotive Application"
